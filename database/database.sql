@@ -108,3 +108,38 @@ CREATE TRIGGER trigger_updated_at_ocr_interpreted_blocks
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
 
+
+
+--ocr_taxonomy table
+DROP TABLE IF EXISTS ocr_taxonomy CASCADE;
+CREATE TABLE ocr_taxonomy
+(
+    taxo_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    project_id uuid REFERENCES ocr_projects(project_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    kingdom text,
+    phylum text,
+    class text,
+    _order text,
+    family text,
+    genus text,
+    subgenus text,
+    species text,
+    subspecies text,
+    author text,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX ocr_taxonomy_pid_idx ON ocr_taxonomy USING BTREE(project_id);
+CREATE INDEX ocr_taxonomy_species_idx ON ocr_taxonomy USING BTREE(species);
+CREATE INDEX ocr_taxonomy_sgenus_idx ON ocr_taxonomy USING BTREE(subgenus);
+CREATE INDEX ocr_taxonomy_genus_idx ON ocr_taxonomy USING BTREE(genus);
+CREATE INDEX ocr_taxonomy_family_idx ON ocr_taxonomy USING BTREE(family);
+CREATE INDEX ocr_taxonomy_order_idx ON ocr_taxonomy USING BTREE(_order);
+CREATE INDEX ocr_taxonomy_class_idx ON ocr_taxonomy USING BTREE(class);
+CREATE INDEX ocr_taxonomy_phylum_idx ON ocr_taxonomy USING BTREE(phylum);
+CREATE INDEX ocr_taxonomy_kingdom_idx ON ocr_taxonomy USING BTREE(kingdom);
+
+CREATE TRIGGER trigger_updated_at_ocr_taxonomy
+  BEFORE UPDATE ON ocr_taxonomy
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+

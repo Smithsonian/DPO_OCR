@@ -131,3 +131,7 @@ dmypy.json
 creds.json
 *.csv
 *.jpg
+
+settings.py
+
+settings.R

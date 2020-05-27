@@ -1,0 +1,6 @@
+pg_user <- ""
+pg_pass <- ""
+pg_host <- ""
+pg_db <- ""
+
+project_id <- ""

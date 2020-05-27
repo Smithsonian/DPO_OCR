@@ -1,7 +1,9 @@
 #ID of the project
 project_id = ""
-source = "Google Vision"
 
+
+##################################
+# Database creds
 ##################################
 #OCR database
 ocr_host = "localhost"
@@ -16,14 +18,22 @@ gis__user = ""
 gis__password = ""
 ##################################
 
+
 #Minimum confidence value to consider
-confidence = 0.80
+confidence = 0.70
+
 
 #Threshold for similarity
 sim_threshold = 80
 
+
+#How to identify collector blocks
+collector_strings = ['Collector', 'coll.', 'coll']
+
+
 #Words to ignore
 text_ignore = ["USNMENT"]
+
 
 #Function to ignore other lines
 def ignore_text(word_text, filename):
