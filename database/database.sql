@@ -97,8 +97,13 @@ CREATE TABLE ocr_interpreted_blocks
     block_id int NOT NULL,
     data_type text,
     interpreted_value text,
+    verbatim_value text,
+    data_source text,
+    feature_uid uuid,
     updated_at timestamp with time zone DEFAULT NOW()
 );
+ALTER TABLE ocr_interpreted_blocks ADD CONSTRAINT ocr_interpreted_blocks_did_bid_inval UNIQUE (document_id, block_id, data_type);
+
 CREATE INDEX ocr_interpreted_blocks_iid_idx ON ocr_interpreted_blocks USING BTREE(interpreted_id);
 CREATE INDEX ocr_interpreted_blocks_did_idx ON ocr_interpreted_blocks USING BTREE(document_id);
 CREATE INDEX ocr_interpreted_blocks_bid_idx ON ocr_interpreted_blocks USING BTREE(block_id);
