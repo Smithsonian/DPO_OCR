@@ -65,8 +65,7 @@ logger1.debug(db_cursor.query.decode("utf-8"))
 
 
 #Get entries with confidence value over the threshold from settings
-#db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id IN (SELECT document_id FROM ocr_documents WHERE project_id = %(project_id)s) order by word) b GROUP BY document_id, block", {'confidence': settings.confidence, 'project_id': settings.project_id})
-db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id = '1cd95f9a-a99f-4888-b967-b96c1c2a79fa'  ORDER BY word) a GROUP BY document_id, block", {'confidence': settings.confidence})
+db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id IN (SELECT document_id FROM ocr_documents WHERE project_id = %(project_id)s) order by word) b GROUP BY document_id, block", {'confidence': settings.confidence, 'project_id': settings.project_id})
 
 
 ocr_blocks = db_cursor.fetchall()
