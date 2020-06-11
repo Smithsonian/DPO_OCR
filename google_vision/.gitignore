@@ -1,0 +1,9 @@
+csv
+images
+images_annotated
+response
+__pycache__
+fulltext
+creds.json
+settings.py
+*.jpg
