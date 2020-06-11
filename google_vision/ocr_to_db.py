@@ -19,7 +19,7 @@ script_title = "Google Vision OCR"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
 ver = "0.1"
 #2020-06-11
-vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/blob/master/google_vision/toolversion.txt"
+vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/google_vision/toolversion.txt"
 repo = "https://github.com/Smithsonian/DPO_OCR/"
 lic = "Available under the Apache 2.0 License"
 
