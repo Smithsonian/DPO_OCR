@@ -98,8 +98,8 @@ for ocr_block in ocr_blocks:
             try:
                 for y in range(from_year, int(cur_year)):
                     if int(alpha_block_yr) == y:
-                        interpreted_value = "{}-00-00".format(alpha_block_yr)
-                        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': alpha_block})
+                        interpreted_value = "{}".format(alpha_block_yr)
+                        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'Date (year)', 'interpreted_value': interpreted_value, 'verbatim_value': alpha_block})
                         logger1.info('Date (year): {}'.format(interpreted_value))
                         break
             except:
@@ -117,7 +117,7 @@ for ocr_block in ocr_blocks:
         elev_text = alpha_block.split(' ')
         elev_text = elev_text[len(elev_text) - 1].strip()
         interpreted_value = "{}\'".format(re.findall(r'\d+', elev_text))
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
         logger1.info('Elevation: {}'.format(interpreted_value))
         continue
     if alpha_block[-1] == "m" or alpha_block[-1] == "masl":
@@ -125,7 +125,7 @@ for ocr_block in ocr_blocks:
         elev_text = alpha_block.split(' ')
         elev_text = elev_text[len(elev_text) - 1].strip()
         interpreted_value = "{}m".format(re.findall(r'\d+', elev_text))
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
         logger1.info('Elevation: {}'.format(interpreted_value))
         continue
     for i in range(from_year, int(cur_year)):
@@ -194,7 +194,7 @@ for ocr_block in ocr_blocks:
                                     break
     if interpreted_value != "":
         #Remove interpreted values in other fields
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': verbatim_value})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'Date (Y-M-D)', 'interpreted_value': interpreted_value, 'verbatim_value': verbatim_value})
         logger1.info('Date: {}'.format(interpreted_value))
         continue
 
@@ -226,6 +226,10 @@ db_cursor2.execute("SELECT DISTINCT g.name_2 || ', ' || s.abbreviation as name, 
 counties = db_cursor2.fetchall()
 logger1.debug(db_cursor2.query.decode("utf-8"))
 counties_list = counties_list.append(counties, ignore_index=True)
+db_cursor2.execute("SELECT DISTINCT g.name_2 || ' Co., ' || s.abbreviation as name, 'locality:county' as name_type, g.uid FROM gadm2 g, us_state_abbreviations s WHERE g.name_1 = s.state AND g.name_0 = 'United States'")
+counties = db_cursor2.fetchall()
+logger1.debug(db_cursor2.query.decode("utf-8"))
+counties_list = counties_list.append(counties, ignore_index=True)
 
 
 
@@ -243,7 +247,7 @@ for ocr_block in ocr_blocks:
     localities_match = localities_match.append(pd.DataFrame(states), ignore_index=True).append(pd.DataFrame(sub_states), ignore_index=True).append(pd.DataFrame(countries), ignore_index=True)
     localities_match['score'] = localities_match.apply(lambda row : fuzz.token_sort_ratio(ocr_block['block_text'], row['name']), axis = 1)
     top_row = localities_match.sort_values(by = 'score', ascending = False)[0:1].copy()
-    if ((int(top_row.iloc[0]['score']) >= settings.sim_threshold) and (int(top_row.iloc[0]['score']) >= 90)):
+    if (int(top_row.iloc[0]['score']) >= settings.sim_threshold):
         interpreted_value = top_row.iloc[0]['name']
         block_text = ocr_block['block_text']
         block_text_words = block_text.split(' ')
