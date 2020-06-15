@@ -3,13 +3,14 @@
 # Identify blocks of text in OCR
 #
 
-import io, json, sys, os, psycopg2, logging, subprocess, swifter
+import io, json, sys, os, psycopg2, logging, subprocess, swifter, re, dateparser
 from glob import glob
 from pathlib import Path
 from psycopg2.extras import RealDictCursor
 from time import localtime, strftime
 from fuzzywuzzy import fuzz
 import pandas as pd
+from datetime import date
 
 ver = 0.1
 
@@ -65,12 +66,138 @@ logger1.debug(db_cursor.query.decode("utf-8"))
 
 
 #Get entries with confidence value over the threshold from settings
-#db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id IN (SELECT document_id FROM ocr_documents WHERE project_id = %(project_id)s) order by word) b GROUP BY document_id, block", {'confidence': settings.confidence, 'project_id': settings.project_id})
-db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id = '1cd95f9a-a99f-4888-b967-b96c1c2a79fa'  ORDER BY word) a GROUP BY document_id, block", {'confidence': settings.confidence})
+db_cursor.execute("SELECT document_id, block, string_agg(word_text, ' ') as block_text, avg(confidence) as block_confidence FROM (SELECT * FROM ocr_entries WHERE confidence > %(confidence)s AND document_id IN (SELECT document_id FROM ocr_documents WHERE project_id = %(project_id)s) order by word) b GROUP BY document_id, block, word_line", {'confidence': settings.confidence, 'project_id': settings.project_id})
 
 
 ocr_blocks = db_cursor.fetchall()
 logger1.debug(db_cursor.query.decode("utf-8"))
+
+
+
+
+
+#Iterate for dates
+from_year = 1800
+
+
+
+#Iterate blocks
+for ocr_block in ocr_blocks:
+    logger1.info("Block text: {}".format(ocr_block['block_text']))
+    #Identify year
+    #This year
+    today = date.today()
+    cur_year = today.strftime("%Y")
+    interpreted_value = ""
+    alpha_block = re.sub(r'\W+ ,-/', '', ocr_block['block_text']).strip()
+    if len(alpha_block) < 5 or len(re.sub(r'\W+', '', ocr_block['block_text']).strip()) < 5:
+        #Too short to parse
+        alpha_block_yr = re.sub(r'\W+', '', alpha_block).strip()
+        if len(alpha_block_yr) == 4:
+            #Year
+            try:
+                for y in range(from_year, int(cur_year)):
+                    if int(alpha_block_yr) == y:
+                        interpreted_value = "{}-00-00".format(alpha_block_yr)
+                        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': alpha_block})
+                        logger1.info('Date (year): {}'.format(interpreted_value))
+                        break
+            except:
+                continue
+        else:
+            continue
+    if alpha_block in settings.collector_strings:
+        #Codeword that indicates this is a collector
+        continue
+    if "No." in alpha_block:
+        #Codeword that indicates this is not a date
+        continue
+    if alpha_block[-1] == "\'":
+        #Ends in quote, so it should be an elevation, not a date
+        elev_text = alpha_block.split(' ')
+        elev_text = elev_text[len(elev_text) - 1].strip()
+        interpreted_value = "{}\'".format(re.findall(r'\d+', elev_text))
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
+        logger1.info('Elevation: {}'.format(interpreted_value))
+        continue
+    if alpha_block[-1] == "m" or alpha_block[-1] == "masl":
+        #Ends in quote, so it should be an elevation, not a date
+        elev_text = alpha_block.split(' ')
+        elev_text = elev_text[len(elev_text) - 1].strip()
+        interpreted_value = "{}m".format(re.findall(r'\d+', elev_text))
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text})
+        logger1.info('Elevation: {}'.format(interpreted_value))
+        continue
+    for i in range(from_year, int(cur_year)):
+        if interpreted_value == "":
+            if str(i) in ocr_block['block_text']:
+                #Check if can directly parse the date
+                for d_format in ['DMY', 'YMD', 'MDY']:
+                    if dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']}) != None:
+                        this_date = dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']})
+                        interpreted_value = this_date.strftime("%Y-%m-%d")
+                        verbatim_value = alpha_block
+                        continue
+            #Check if there is a month in roman numerals
+            roman_month = {"I": "Jan", "II": "Feb", "III": "Mar", "IV": "Apr", "V": "May", "VI": "Jun", "VII": "Jul", "VIII": "Aug", "IX": "Sep", "X": "Oct", "XI": "Nov", "X11": "Dec"}
+            for m in roman_month:
+                if m in ocr_block['block_text']:
+                    #Possible year and month found
+                    this_text = ocr_block['block_text'].replace(m, roman_month[m])
+                    alpha_block = re.sub(r'\W+ ,-/', '', this_text).strip()
+                    #Try to parse date
+                    for d_format in ['DMY', 'YMD', 'MDY']:
+                        if dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']}) != None:
+                            this_date = dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']})
+                            interpreted_value = this_date.strftime("%Y-%m-%d")
+                            verbatim_value = alpha_block
+                            continue
+    if interpreted_value == "":
+        for i in range(99):
+            if interpreted_value == "":
+                if i < 10:
+                    i = "0{}".format(i)
+                else:
+                    i = str(i)
+                if "-{}".format(i) in ocr_block['block_text'] or "\'{}".format(i) in ocr_block['block_text'] or " {}".format(i) in ocr_block['block_text'] or "/{}".format(i) in ocr_block['block_text']:
+                    #Check if can directly parse the date
+                    alpha_block = re.sub(r'\W+ ,-/', '', ocr_block['block_text']).strip()
+                    for d_format in ['DMY', 'YMD', 'MDY']:
+                        if dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']}) != None:
+                            this_date = dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']})
+                            if int(this_date.strftime("%Y")) > int(cur_year):
+                                #If it interprets year 64 as 2064
+                                this_date_year = int(this_date.strftime("%Y")) - 1000
+                            else:
+                                this_date_year = this_date.strftime("%Y")
+                            interpreted_value = "{}-{}".format(this_date_year, this_date.strftime("%m-%d"))
+                            verbatim_value = alpha_block
+                            break
+                    #Check if there is a month in roman numerals
+                    roman_month = {"I": "Jan", "II": "Feb", "III": "Mar", "IV": "Apr", "V": "May", "VI": "Jun", "VII": "Jul", "VIII": "Aug", "IX": "Sep", "X": "Oct", "XI": "Nov", "X11": "Dec"}
+                    for m in roman_month:
+                        if m in ocr_block['block_text']:
+                            #Possible year and month found
+                            this_text = ocr_block['block_text'].replace(m, roman_month[m])
+                            alpha_block = re.sub(r'\W+ ,-/', '', this_text).strip()
+                            #Try to parse date
+                            for d_format in ['DMY', 'YMD', 'MDY']:
+                                if dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']}) != None:
+                                    this_date = dateparser.parse(alpha_block, settings={'DATE_ORDER': d_format, 'PREFER_DATES_FROM': 'past', 'PREFER_DAY_OF_MONTH': 'first', 'REQUIRE_PARTS': ['month', 'year']})
+                                    if int(this_date.strftime("%Y")) > int(cur_year):
+                                        #If it interprets year 64 as 2064
+                                        this_date_year = int(this_date.strftime("%Y")) - 1000
+                                    else:
+                                        this_date_year = this_date.strftime("%Y")
+                                    interpreted_value = "{}-{}".format(this_date_year, this_date.strftime("%m-%d"))
+                                    verbatim_value = alpha_block
+                                    break
+    if interpreted_value != "":
+        #Remove interpreted values in other fields
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'date', 'interpreted_value': interpreted_value, 'verbatim_value': verbatim_value})
+        logger1.info('Date: {}'.format(interpreted_value))
+        continue
+
 
 
 
@@ -86,19 +213,37 @@ logger1.debug(db_cursor2.query.decode("utf-8"))
 db_cursor2.execute("SELECT name_0 as name, 'locality:country' as name_type, uid FROM gadm0")
 countries = db_cursor2.fetchall()
 logger1.debug(db_cursor2.query.decode("utf-8"))
+#Get counties, state
+db_cursor2.execute("SELECT name_2 || ' Co., ' || name_1 as name, 'locality:county' as name_type, uid FROM gadm2 WHERE name_0 = 'United States' AND type_2 = 'County'")
+counties = db_cursor2.fetchall()
+logger1.debug(db_cursor2.query.decode("utf-8"))
+counties_list = pd.DataFrame(counties)
+db_cursor2.execute("SELECT name_2 || ' ' || type_2 || ', ' || name_1 as name, 'locality:county' as name_type, uid FROM gadm2 WHERE name_0 = 'United States'")
+counties = db_cursor2.fetchall()
+logger1.debug(db_cursor2.query.decode("utf-8"))
+counties_list = counties_list.append(counties, ignore_index=True)
+db_cursor2.execute("SELECT DISTINCT g.name_2 || ', ' || s.abbreviation as name, 'locality:county' as name_type, g.uid FROM gadm2 g, us_state_abbreviations s WHERE g.name_1 = s.state AND g.name_0 = 'United States'")
+counties = db_cursor2.fetchall()
+logger1.debug(db_cursor2.query.decode("utf-8"))
+counties_list = counties_list.append(counties, ignore_index=True)
+
+
+
+#Close GIS database connection
+db_cursor2.close()
+conn2.close()
+
 
 
 #Iterate for localities
 for ocr_block in ocr_blocks:
     logger1.info("Block text: {}".format(ocr_block['block_text']))
     #Countries
-    countries_match = pd.DataFrame(countries)
-    states_match = pd.DataFrame(states)
-    sub_states_match = pd.DataFrame(sub_states)
-    countries_match = countries_match.append(states_match, ignore_index=True).append(sub_states_match, ignore_index=True)
-    countries_match['score'] = countries_match.apply(lambda row : fuzz.token_sort_ratio(ocr_block['block_text'], row['name']), axis = 1)
-    top_row = countries_match.sort_values(by = 'score', ascending = False)[0:1].copy()
-    if (int(top_row.iloc[0]['score']) >= settings.sim_threshold):
+    localities_match = pd.DataFrame(counties_list)
+    localities_match = localities_match.append(pd.DataFrame(states), ignore_index=True).append(pd.DataFrame(sub_states), ignore_index=True).append(pd.DataFrame(countries), ignore_index=True)
+    localities_match['score'] = localities_match.apply(lambda row : fuzz.token_sort_ratio(ocr_block['block_text'], row['name']), axis = 1)
+    top_row = localities_match.sort_values(by = 'score', ascending = False)[0:1].copy()
+    if ((int(top_row.iloc[0]['score']) >= settings.sim_threshold) and (int(top_row.iloc[0]['score']) >= 90)):
         interpreted_value = top_row.iloc[0]['name']
         block_text = ocr_block['block_text']
         block_text_words = block_text.split(' ')
@@ -114,14 +259,6 @@ for ocr_block in ocr_blocks:
         logger1.debug(db_cursor.query.decode("utf-8"))
         logger1.info('Locality: {} (uid: gadm0:{}, token_set_ratio: {})'.format(interpreted_value, top_row.iloc[0]['uid'], top_row.iloc[0]['score']))
     
-
-
-
-
-#Close GIS database connection
-db_cursor2.close()
-conn2.close()
-
 
 
 #Get taxonomy info from OCR database
@@ -141,8 +278,6 @@ db_cursor.execute("""
 taxonomy = db_cursor.fetchall()
 taxo_match = pd.DataFrame(taxonomy)
 
-countries_match = countries_match.append(states_match, ignore_index=True).append(sub_states_match, ignore_index=True)
-
 
 
 #Iterate for scinames
@@ -158,9 +293,6 @@ for ocr_block in ocr_blocks:
         db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': top_row.iloc[0]['name_type'], 'interpreted_value': interpreted_value, 'verbatim_value': ""})
         logger1.debug(db_cursor.query.decode("utf-8"))
         logger1.info('taxonomy:sciname: {} (token_set_ratio: {})'.format(interpreted_value, top_row.iloc[0]['score']))
-
-
-
 
 
 
