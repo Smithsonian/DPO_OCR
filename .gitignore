@@ -136,3 +136,4 @@ settings.py
 
 settings.R
 *.zip
+.Rproj.user

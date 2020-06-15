@@ -4,6 +4,9 @@ library(shiny)
 library(dplyr)
 library(readr)
 library(plotly)
+#library(tm)
+#library(wordcloud)
+#library(memoise)
 
 # Settings ----
 source("settings.R")
@@ -18,7 +21,9 @@ ui <- fluidPage(
   hr(),
   fluidRow(
     column(width = 3,
-           uiOutput("filetext")
+           uiOutput("summary"),
+           uiOutput("filetext"),
+           uiOutput("transcript")
     ),
     column(width = 9,
            uiOutput("image"),
@@ -58,6 +63,36 @@ server <- function(input, output, session) {
   proj_name <- project$project_title
   
   
+  #summary----
+  output$summary <- renderUI({
+    query <- parseQueryString(session$clientData$url_search)
+    filename <- query['filename']
+    
+    if (filename != "NULL"){req(FALSE)} 
+    
+    summary_query <- paste0("SELECT string_agg(DISTINCT d.ocr_source, ',') AS ocr_source, COUNT(DISTINCT d.filename) as no_files, count(e.*) as no_entries, count(distinct i.document_id) as interpreted_docs, count(i.*) as interpreted_blocks FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) LEFT JOIN ocr_interpreted_blocks i ON (d.document_id = i.document_id) WHERE project_id = '", project_id, "'::uuid")
+    summary <- dbGetQuery(db, summary_query)
+    
+    summary_query <- paste0("select count(*) as interpreted_blocks FROM (
+                    SELECT i.document_id, i.block_id FROM ocr_documents d 
+                      LEFT JOIN ocr_interpreted_blocks i ON (d.document_id = i.document_id) 
+                      WHERE d.project_id = '", project_id, "'::uuid
+                      GROUP BY i.document_id, i.block_id) a")
+    interpreted <- dbGetQuery(db, summary_query)
+    
+    tagList(
+      h3("Summary"),
+      p(paste0("OCR Source: ", summary$ocr_source)),
+      p(paste0("Number of files: ", summary$no_files)),
+      p(paste0("Number of files with fields assigned: ", summary$interpreted_docs, " (", round((summary$interpreted_docs/summary$no_files) * 100 ,2), "%)")),
+      hr(),
+      p(paste0("Number of total blocks of text: ", summary$no_entries)),
+      p(paste0("Number of blocks with field assigned: ", interpreted$interpreted_blocks, " (", round((interpreted$interpreted_blocks/summary$no_entries) * 100 ,2), "%)"))
+      
+    )
+  })
+  
+  
   #selectfile----
   output$selectfile <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
@@ -81,7 +116,7 @@ server <- function(input, output, session) {
     }
     
     tagList(
-      h2(proj_name),
+      HTML(paste0("<h2><a href=\"./\">", proj_name, "</a></h2>")),
       sel_list,
       actionButton("submit_filename", "Submit")
     )
@@ -206,6 +241,7 @@ server <- function(input, output, session) {
   })
   
   
+  #image----
   output$image <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
     filename <- query['filename']
@@ -218,6 +254,49 @@ server <- function(input, output, session) {
   })
   
   
+  #transcript----
+  output$transcript <- renderUI({
+    query <- parseQueryString(session$clientData$url_search)
+    filename <- query['filename']
+    
+    if (filename == "NULL"){req(FALSE)}
+    
+    transcript_query <- paste0("SELECT * FROM ocr_transcription_ento WHERE filename = '", filename, ".jpg'")
+    print(transcript_query)
+    transcript_data <- dbGetQuery(db, transcript_query)
+    
+    if (dim(transcript_data)[1] == 1){
+      block_html <- paste0("<div class=\"panel panel-info\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Data from Transcription</h3></div><div class=\"panel-body\">",
+                           "<dl>
+                              <dt>Collector</dt>
+                              <dd>", transcript_data$collector, "</dd>
+                              <dt>Date</dt>
+                              <dd>", transcript_data$verbatim_date, "</dd>
+                              <dt>Locality</dt>
+                              <dd>", transcript_data$verbatim_locality, "</dd>
+                              <dt>Country</dt>
+                              <dd>", transcript_data$country, "</dd>
+                              <dt>State/Territory</dt>
+                              <dd>", transcript_data$state_territory, "</dd>
+                              <dt>District/County</dt>
+                              <dd>", transcript_data$district_county, "</dd>
+                              <dt>Precice Locality</dt>
+                              <dd>", transcript_data$precice_locality, "</dd>
+                              <dt>Lat/Lon</dt>
+                              <dd>", transcript_data$latitude_longitude, "</dd>
+                              <dt>Elevation</dt>
+                              <dd>", transcript_data$Elevation, "</dd>
+                              <dt>Other Numbers</dt>
+                              <dd>", transcript_data$other_numbers, "</dd>
+                              <dt>Label Notes</dt>
+                              <dd>", transcript_data$label_notes, "</dd>
+                            </dl>",
+                           "</div></div></div>")
+      
+      HTML(block_html)
+    }
+  })
+  
   
   
   #plot----
@@ -227,17 +306,22 @@ server <- function(input, output, session) {
     
     if (filename != "NULL"){req(FALSE)}
     
-    files_query <- paste0("SELECT d.filename, ROUND(AVG(e.confidence)::numeric, 4) as mean_confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid GROUP BY d.filename ORDER BY mean_confidence DESC")
+    #files_query <- paste0("SELECT d.filename, ROUND(AVG(e.confidence)::numeric, 4) as mean_confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid GROUP BY d.filename ORDER BY mean_confidence DESC")
+    files_query <- paste0("SELECT e.confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid ORDER BY confidence DESC")
     filelist <- dbGetQuery(db, files_query)
     
-    fig <- plot_ly(data = filelist, x = ~mean_confidence, height = "560") %>% 
+    #fig <- plot_ly(data = filelist, x = ~mean_confidence, height = "560") %>% 
+    fig <- plot_ly(data = filelist, x = ~confidence, height = "560") %>% 
       add_histogram(nbinsx = 40) %>% 
       layout(
-        title = "Distribution of average confidence in each image",
-        xaxis = list(title = "Average Confidence"),
-        yaxis = list(title = "No. of images")
+        title = "Distribution of confidence of the OCR by text block",
+        xaxis = list(title = "Confidence of OCR"),
+        yaxis = list(title = "No. of text blocks")
       )
     })
+  
+  
+  
 }
 
 # Run the application 
