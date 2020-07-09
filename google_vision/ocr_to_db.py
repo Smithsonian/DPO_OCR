@@ -77,6 +77,9 @@ conn.autocommit = True
 db_cursor = conn.cursor()
 
 
+#Delete old data from project
+db_cursor.execute("DELETE FROM ocr_documents WHERE project_id = %(project_id)s", {'project_id': settings.project_id})
+
 #Get images
 list_of_files = glob.glob('{}/*.jpg'.format(path))
 print("\n\nFound {} files.".format(len(list_of_files)))
@@ -108,8 +111,8 @@ for filename in list_of_files:
     if os.path.exists('response') == False:
         os.mkdir('response')
 
-    with open('response/{}.txt'.format(Path(filename).stem), 'w') as out:
-        out.write(str(response))
+    with open('response/{}.json'.format(Path(filename).stem), 'w') as out:
+        out.write(str(response.full_text_annotation.pages))
 
     ocr_text = response.full_text_annotation.text.split("\n")
 
@@ -137,7 +140,6 @@ for filename in list_of_files:
     wordfile.write("word_text,block,page,word,word_line,confidence,vertices_x_0,vertices_y_0,vertices_x_1,vertices_y_1,vertices_x_2,vertices_y_2,vertices_x_3,vertices_y_3\n")
 
 
-
     #image for PIL
     im = Image.open(filename)
 
@@ -152,6 +154,38 @@ for filename in list_of_files:
         for block in page.blocks:
             #print('\nBlock confidence: {}\n'.format(block.confidence))
             b += 1
+            #write box to image
+            if block.confidence > 0.9:
+                linecolor = "#66ff33"
+            elif block.confidence <= 0.9 and block.confidence > 0.8:
+                linecolor = "#ffdb4d"
+            elif block.confidence <= 0.8 and block.confidence > 0.7:
+                linecolor = "#ffa366"
+            elif block.confidence <= 0.7:
+                linecolor = "#ff6666"
+            wrd_vertices = [str(block.bounding_box.vertices[0]).split('\n')]
+            wrd_vertices_x_0 = wrd_vertices[0][0].replace('x: ', '')
+            wrd_vertices_y_0 = wrd_vertices[0][1].replace('y: ', '')
+            #1
+            wrd_vertices = [str(block.bounding_box.vertices[1]).split('\n')]
+            wrd_vertices_x_1 = wrd_vertices[0][0].replace('x: ', '')
+            wrd_vertices_y_1 = wrd_vertices[0][1].replace('y: ', '')
+            #2
+            wrd_vertices = [str(block.bounding_box.vertices[2]).split('\n')]
+            wrd_vertices_x_2 = wrd_vertices[0][0].replace('x: ', '')
+            wrd_vertices_y_2 = wrd_vertices[0][1].replace('y: ', '')
+            #3
+            wrd_vertices = [str(block.bounding_box.vertices[3]).split('\n')]
+            wrd_vertices_x_3 = wrd_vertices[0][0].replace('x: ', '')
+            wrd_vertices_y_3 = wrd_vertices[0][1].replace('y: ', '')
+            if settings.box_draw == "blocks":
+                draw = ImageDraw.Draw(im)
+                draw.line([(int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width), (int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width)], fill = linecolor, width = settings.line_width)
+                draw.line([(int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width), (int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width)], fill = linecolor, width = settings.line_width)
+                draw.line([(int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width), (int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width)], fill = linecolor, width = settings.line_width)
+                draw.line([(int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width), (int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width)], fill = linecolor, width = settings.line_width)
+                del draw
+            db_cursor.execute("INSERT INTO ocr_blocks (document_id, block, confidence, vertices_x_0, vertices_y_0, vertices_x_1, vertices_y_1, vertices_x_2, vertices_y_2, vertices_x_3, vertices_y_3) VALUES (%(document_id)s,%(block)s, %(confidence)s, %(vertices_x_0)s, %(vertices_y_0)s, %(vertices_x_1)s, %(vertices_y_1)s, %(vertices_x_2)s, %(vertices_y_2)s, %(vertices_x_3)s, %(vertices_y_3)s)", {'document_id': document_id, 'block': b, 'confidence': block.confidence, 'vertices_x_0': wrd_vertices_x_0, 'vertices_y_0': wrd_vertices_y_0, 'vertices_x_1': wrd_vertices_x_1, 'vertices_y_1': wrd_vertices_y_1, 'vertices_x_2': wrd_vertices_x_2, 'vertices_y_2': wrd_vertices_y_2, 'vertices_x_3': wrd_vertices_x_3, 'vertices_y_3': wrd_vertices_y_3})
             for paragraph in block.paragraphs:
                 #print('Paragraph confidence: {}'.format(
                     #paragraph.confidence))
@@ -201,12 +235,13 @@ for filename in list_of_files:
                         linecolor = "#ffa366"
                     elif word.confidence <= 0.7:
                         linecolor = "#ff6666"
-                    draw = ImageDraw.Draw(im)
-                    draw.line([(int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width), (int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width)], fill = linecolor, width = settings.line_width)
-                    draw.line([(int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width), (int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width)], fill = linecolor, width = settings.line_width)
-                    draw.line([(int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width), (int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width)], fill = linecolor, width = settings.line_width)
-                    draw.line([(int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width), (int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width)], fill = linecolor, width = settings.line_width)
-                    del draw
+                    if settings.box_draw == "words":
+                        draw = ImageDraw.Draw(im)
+                        draw.line([(int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width), (int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width)], fill = linecolor, width = settings.line_width)
+                        draw.line([(int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width), (int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width)], fill = linecolor, width = settings.line_width)
+                        draw.line([(int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width), (int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width)], fill = linecolor, width = settings.line_width)
+                        draw.line([(int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width), (int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width)], fill = linecolor, width = settings.line_width)
+                        del draw
                     word_list.append([word_text, word.confidence, [[wrd_vertices_x_0, wrd_vertices_y_0], [wrd_vertices_x_1, wrd_vertices_y_1], [wrd_vertices_x_2, wrd_vertices_y_2], [wrd_vertices_x_3, wrd_vertices_y_3]]])
                     db_cursor.execute("INSERT INTO ocr_entries (document_id, word_text, block, page, word, word_line, confidence, vertices_x_0, vertices_y_0, vertices_x_1, vertices_y_1, vertices_x_2, vertices_y_2, vertices_x_3, vertices_y_3) VALUES (%(document_id)s, %(word_text)s, %(block)s, %(page)s, %(word)s, %(word_line)s, %(confidence)s, %(vertices_x_0)s, %(vertices_y_0)s, %(vertices_x_1)s, %(vertices_y_1)s, %(vertices_x_2)s, %(vertices_y_2)s, %(vertices_x_3)s, %(vertices_y_3)s)", {'document_id': document_id, 'word_text': word_text, 'block': b, 'page': p, 'word': w, 'word_line': word_line, 'confidence': word.confidence, 'vertices_x_0': wrd_vertices_x_0, 'vertices_y_0': wrd_vertices_y_0, 'vertices_x_1': wrd_vertices_x_1, 'vertices_y_1': wrd_vertices_y_1, 'vertices_x_2': wrd_vertices_x_2, 'vertices_y_2': wrd_vertices_y_2, 'vertices_x_3': wrd_vertices_x_3, 'vertices_y_3': wrd_vertices_y_3})
 

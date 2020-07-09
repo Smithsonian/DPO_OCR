@@ -22,7 +22,7 @@ ui <- fluidPage(
   fluidRow(
     column(width = 3,
            uiOutput("summary"),
-           uiOutput("filetext"),
+           uiOutput("filetext", style = "height: 600px; overflow-y: scroll;"),
            uiOutput("transcript")
     ),
     column(width = 9,
@@ -118,7 +118,7 @@ server <- function(input, output, session) {
     tagList(
       HTML(paste0("<h2><a href=\"./\">", proj_name, "</a></h2>")),
       sel_list,
-      actionButton("submit_filename", "Submit")
+      actionButton("submit_filename", "View Image")
     )
   })
   
@@ -166,14 +166,31 @@ server <- function(input, output, session) {
       
       if (dim(block_data)[1] > 0){
         
-        blk_conf <- round(mean(as.numeric(block_data$confidence)), 4)
+        block_c_q <- paste0("SELECT confidence FROM ocr_blocks WHERE document_id = '", doc_id$document_id, "'::uuid and block = ", b)
+        print(block_c_q)
+        block_conf <- dbGetQuery(db, block_c_q)
+        
+        #blk_conf <- round(mean(as.numeric(block_data$confidence)), 4)
+        blk_conf <- round(mean(as.numeric(block_conf$confidence)), 4)
         
         if (blk_conf > 0.9){
           header_color <- "success"
         }else if (blk_conf <= 0.9 && blk_conf > 0.8){
           header_color <- "warning"
+        }else if (blk_conf <= 0.8 && blk_conf > 0.7){
+          header_color <- "warning"
         }else{
           header_color <- "danger"
+        }
+        
+        if (blk_conf > 0.9){
+          header_color <- "#66ff33"
+        }else if (blk_conf <= 0.9 && blk_conf > 0.8){
+          header_color <- "#ffdb4d"
+        }else if (blk_conf <= 0.8 && blk_conf > 0.7){
+          header_color <- "#ffa366"
+        }else{
+          header_color <- "#ff6666"
         }
         
         block_q <- paste0("SELECT block_id, string_agg(data_type, ',') as data_type FROM ocr_interpreted_blocks WHERE document_id = '", doc_id$document_id, "'::uuid and block_id = ", b, " GROUP BY block_id")
@@ -184,7 +201,8 @@ server <- function(input, output, session) {
           blk_types <- paste0("<em>", block_types$data_type, "</em>")
         }
         
-        pre_txt <- paste0("<div class=\"panel panel-", header_color, "\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Block type: [", blk_types, "] <small>(mean confidence: ", blk_conf, ")</small></h3></div><div class=\"panel-body\">")
+        #pre_txt <- paste0("<div class=\"panel panel-", header_color, "\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Block type: [", blk_types, "] <small>(mean confidence: ", blk_conf, ")</small></h3></div><div class=\"panel-body\">")
+        pre_txt <- paste0("<div class=\"panel\"><div class=\"panel-heading\" style=\"background:", header_color, ";\"><h3 class=\"panel-title\">Block type: [", blk_types, "] <small>(block confidence: ", blk_conf, ")</small></h3></div><div class=\"panel-body\">")
         
         post_box <- paste0("</div></div></div>")
         line_text <- ""
@@ -220,20 +238,25 @@ server <- function(input, output, session) {
         
         #pre_lines <- paste0(pre_lines, pre_txt, line_text, "</p>")
         
+        block_html <- paste0(block_html, pre_txt, line_text)
+        
         #Interpreted
         block_q <- paste0("SELECT initcap(data_type) as data_type, interpreted_value FROM ocr_interpreted_blocks WHERE document_id = '", doc_id$document_id, "'::uuid and block_id = ", b)
         print(block_q)
         int_data <- dbGetQuery(db, block_q)
-        block_info <- "Interpreted data: NA"
+        #block_info <- "Interpreted data: NA"
         if (dim(int_data)[1] > 0){
           block_info <- "Interpreted data:<ul>"
           for (n in seq(1, dim(int_data)[1])){
             block_info <- paste0(block_info, "<li>", int_data$data_type[n], ":", int_data$interpreted_value[n], "</li>")
           }
-          block_info <- paste0(block_info, "</ul>")
+          block_info <- paste0("<em>", block_info, "</ul></em>")
+          
+          block_html <- paste0(block_html, "<br>", block_info)
+          
         }
         
-        block_html <- paste0(block_html, pre_txt, line_text, "<br><em>", block_info, "</em>", post_box)
+        block_html <- paste0(block_html, post_box)
       }
     }
   

@@ -148,3 +148,33 @@ CREATE TRIGGER trigger_updated_at_ocr_taxonomy
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
 
+
+
+
+
+
+--ocr_interpreted_blocks
+DROP TABLE IF EXISTS ocr_blocks CASCADE;
+CREATE TABLE ocr_blocks
+(
+    document_id uuid REFERENCES ocr_documents(document_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    block int NOT NULL,
+    confidence float,
+    vertices_x_0 integer,
+    vertices_y_0 integer,
+    vertices_x_1 integer,
+    vertices_y_1 integer,
+    vertices_x_2 integer,
+    vertices_y_2 integer,
+    vertices_x_3 integer,
+    vertices_y_3 integer,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX ocr_block_did_idx ON ocr_blocks USING BTREE(document_id);
+CREATE INDEX ocr_block_bid_idx ON ocr_blocks USING BTREE(block);
+
+CREATE TRIGGER trigger_updated_at_ocr_block
+  BEFORE UPDATE ON ocr_blocks
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
