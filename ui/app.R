@@ -22,13 +22,15 @@ ui <- fluidPage(
   fluidRow(
     column(width = 3,
            uiOutput("summary"),
-           uiOutput("filetext", style = "height: 600px; overflow-y: scroll;"),
-           uiOutput("transcript")
+           uiOutput("filetext", style = "height: 600px; overflow-y: scroll;")
     ),
-    column(width = 9,
+    column(width = 6,
            uiOutput("image"),
            plotlyOutput("plot")
-    )
+    ),
+    column(width = 3,
+           uiOutput("transcript")
+           )
   ),
   uiOutput("main")
 )

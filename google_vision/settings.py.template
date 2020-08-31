@@ -30,3 +30,6 @@ def ignore_text(word_text, filename):
 crop_buffer = 30
 
 line_width = 3
+
+box_draw = "words"
+#words, blocks
