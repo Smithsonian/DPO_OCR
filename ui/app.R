@@ -28,9 +28,13 @@ ui <- fluidPage(
            uiOutput("image"),
            plotlyOutput("plot")
     ),
+    # column(width = 2,
+    #        uiOutput("ocr_transcript", style = "font-size: 80%;")
+    # ),
     column(width = 3,
+           #uiOutput("transcript", style = "font-size: 80%;")
            uiOutput("transcript")
-           )
+    )
   ),
   uiOutput("main")
 )
@@ -68,7 +72,7 @@ server <- function(input, output, session) {
   #summary----
   output$summary <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     if (filename != "NULL"){req(FALSE)} 
     
@@ -98,7 +102,7 @@ server <- function(input, output, session) {
   #selectfile----
   output$selectfile <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     #if (filename != "NULL"){req(FALSE)}
     
@@ -141,7 +145,7 @@ server <- function(input, output, session) {
   #filetext----
   output$filetext <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     if (filename == "NULL"){req(FALSE)}
     
@@ -269,20 +273,65 @@ server <- function(input, output, session) {
   #image----
   output$image <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     if (filename == "NULL"){req(FALSE)}
     
     #img <- readJPEG("www/images/bee2.jpg")
     
-    HTML(paste0("<img src=\"images/", filename, ".jpg\">"))
+    HTML(paste0("<img src=\"images/", filename, ".jpg\" width = \"100%\">"))
   })
+  
+  
+  #ocr_transcript
+  output$ocr_transcript <- renderUI({
+    query <- parseQueryString(session$clientData$url_search)
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    
+    if (filename == "NULL"){req(FALSE)}
+    
+    transcript_query <- paste0("SELECT * FROM ocr_transcription_ento WHERE filename = '", filename, ".jpg'")
+    print(transcript_query)
+    transcript_data <- dbGetQuery(db, transcript_query)
+    
+    if (dim(transcript_data)[1] == 1){
+      block_html <- paste0("<div class=\"panel panel-info\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Data from Transcription</h3></div><div class=\"panel-body\">",
+                           "<dl>
+                              <dt>Collector</dt>
+                              <dd>", transcript_data$collector, "</dd>
+                              <dt>Date</dt>
+                              <dd>", transcript_data$verbatim_date, "</dd>
+                              <dt>Locality</dt>
+                              <dd>", transcript_data$verbatim_locality, "</dd>
+                              <dt>Country</dt>
+                              <dd>", transcript_data$country, "</dd>
+                              <dt>State/Territory</dt>
+                              <dd>", transcript_data$state_territory, "</dd>
+                              <dt>District/County</dt>
+                              <dd>", transcript_data$district_county, "</dd>
+                              <dt>Precice Locality</dt>
+                              <dd>", transcript_data$precice_locality, "</dd>
+                              <dt>Lat/Lon</dt>
+                              <dd>", transcript_data$latitude_longitude, "</dd>
+                              <dt>Elevation</dt>
+                              <dd>", transcript_data$Elevation, "</dd>
+                              <dt>Other Numbers</dt>
+                              <dd>", transcript_data$other_numbers, "</dd>
+                              <dt>Label Notes</dt>
+                              <dd>", transcript_data$label_notes, "</dd>
+                            </dl>",
+                           "</div></div></div>")
+      
+      HTML(block_html)
+    }
+  })
+  
   
   
   #transcript----
   output$transcript <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     if (filename == "NULL"){req(FALSE)}
     
@@ -327,7 +376,7 @@ server <- function(input, output, session) {
   #plot----
   output$plot <- renderPlotly({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- query['filename']
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
     
     if (filename != "NULL"){req(FALSE)}
     
