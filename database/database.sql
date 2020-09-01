@@ -100,6 +100,7 @@ CREATE TABLE ocr_interpreted_blocks
     document_id uuid REFERENCES ocr_documents(document_id) ON DELETE CASCADE ON UPDATE CASCADE,
     block_id int NOT NULL,
     data_type text,
+    data_format text,
     interpreted_value text,
     verbatim_value text,
     data_source text,

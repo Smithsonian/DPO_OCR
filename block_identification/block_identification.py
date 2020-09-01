@@ -12,7 +12,7 @@ from fuzzywuzzy import fuzz
 import pandas as pd
 from datetime import date
 
-ver = 0.2
+ver = "0.2.1"
 
 ##Import settings from settings.py file
 import settings
@@ -46,7 +46,7 @@ logger1.info("block_id version {}".format(ver))
 
 
 #Insert query
-insert_q = "INSERT INTO ocr_interpreted_blocks (document_id, block_id, data_type, interpreted_value, verbatim_value, data_source, match_score) VALUES (%(document_id)s, %(block_id)s, %(data_type)s, %(interpreted_value)s, %(verbatim_value)s, %(data_source)s, %(match_score)s) ON CONFLICT (document_id, block_id, data_type) DO UPDATE SET interpreted_value = %(interpreted_value)s, verbatim_value = %(verbatim_value)s"
+insert_q = "INSERT INTO ocr_interpreted_blocks (document_id, block_id, data_type, data_format, interpreted_value, verbatim_value, data_source, match_score) VALUES (%(document_id)s, %(block_id)s, %(data_type)s, %(data_format)s, %(interpreted_value)s, %(verbatim_value)s, %(data_source)s, %(match_score)s) ON CONFLICT (document_id, block_id, data_type) DO UPDATE SET interpreted_value = %(interpreted_value)s, verbatim_value = %(verbatim_value)s"
 
 #OCR Database
 conn = psycopg2.connect(host = settings.ocr_host, database = settings.ocr_db, user = settings.ocr_user, password = settings.ocr_password, connect_timeout = 60)
@@ -98,7 +98,7 @@ for ocr_block in ocr_blocks:
                 for y in range(from_year, int(cur_year)):
                     if int(alpha_block_yr) == y:
                         interpreted_value = "{}".format(alpha_block_yr)
-                        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'Date (year)', 'interpreted_value': interpreted_value, 'verbatim_value': alpha_block, 'data_source': '', 'match_score': 0})
+                        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'verbatim_date', 'data_format': 'Date (year)', 'interpreted_value': interpreted_value, 'verbatim_value': alpha_block, 'data_source': '', 'match_score': 0})
                         logger1.info('Date (year): {}'.format(interpreted_value))
                         break
             except:
@@ -118,7 +118,7 @@ for ocr_block in ocr_blocks:
         elev_text = alpha_block.split(' ')
         elev_text = elev_text[len(elev_text) - 1].strip()
         interpreted_value = "{}\'".format(re.findall(r'\d+', elev_text))
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text, 'data_source': '', 'match_score': 0})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'data_format': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text, 'data_source': '', 'match_score': 0})
         logger1.info('Elevation: {}'.format(interpreted_value))
         continue
     if alpha_block[-1] == "m" or alpha_block[-1] == "masl":
@@ -126,7 +126,7 @@ for ocr_block in ocr_blocks:
         elev_text = alpha_block.split(' ')
         elev_text = elev_text[len(elev_text) - 1].strip()
         interpreted_value = "{}m".format(re.findall(r'\d+', elev_text))
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text, 'data_source': '', 'match_score': 0})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'elevation', 'data_format': 'elevation', 'interpreted_value': interpreted_value, 'verbatim_value': elev_text, 'data_source': '', 'match_score': 0})
         logger1.info('Elevation: {}'.format(interpreted_value))
         continue
     for i in range(from_year, int(cur_year)):
@@ -195,7 +195,7 @@ for ocr_block in ocr_blocks:
                                     break
     if interpreted_value != "":
         #Remove interpreted values in other fields
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'Date (Y-M-D)', 'interpreted_value': interpreted_value, 'verbatim_value': verbatim_value, 'data_source': '', 'match_score': 0})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'verbatim_date', 'data_format': 'Date (Y-M-D)', 'interpreted_value': interpreted_value, 'verbatim_value': verbatim_value, 'data_source': '', 'match_score': 0})
         logger1.info('Date: {}'.format(interpreted_value))
         continue
 
@@ -260,7 +260,7 @@ for ocr_block in ocr_blocks:
                     block_df.loc[len(block_df)] = [" ".join(block_text_words[i:j])]
         block_df['score'] = block_df.apply(lambda row : fuzz.token_sort_ratio(interpreted_value, row['text']), axis = 1)
         block_df_top_row = block_df.sort_values(by = 'score', ascending = False)[0:1].copy()
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': top_row.iloc[0]['name_type'], 'interpreted_value': interpreted_value, 'verbatim_value': block_df_top_row.iloc[0]['text'], 'data_source': '', 'match_score': 0})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'verbatim_locality', 'data_format': top_row.iloc[0]['name_type'], 'interpreted_value': interpreted_value, 'verbatim_value': block_df_top_row.iloc[0]['text'], 'data_source': '', 'match_score': 0})
         logger1.debug(db_cursor.query.decode("utf-8"))
         logger1.info('Locality: {} (uid: gadm0:{}, token_set_ratio: {})'.format(interpreted_value, top_row.iloc[0]['uid'], top_row.iloc[0]['score']))
     
@@ -295,7 +295,7 @@ for ocr_block in ocr_blocks:
     top_row = taxo_match.sort_values(by = ['score', 'sortorder'], ascending = False)[0:1].copy()
     if (int(top_row.iloc[0]['score']) >= settings.sim_threshold):
         interpreted_value = top_row.iloc[0]['sciname']
-        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': top_row.iloc[0]['name_type'], 'interpreted_value': interpreted_value, 'verbatim_value': "", 'data_source': '', 'match_score': 0})
+        db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'taxonomy', 'data_format': top_row.iloc[0]['name_type'], 'interpreted_value': interpreted_value, 'verbatim_value': "", 'data_source': '', 'match_score': 0})
         logger1.debug(db_cursor.query.decode("utf-8"))
         logger1.info('taxonomy:sciname: {} (token_set_ratio: {})'.format(interpreted_value, top_row.iloc[0]['score']))
 
@@ -316,9 +316,10 @@ for ocr_block in ocr_blocks:
                 interpreted_value = interpreted_value.replace(row['verbatim_value'], '').strip()
                 print("{}|{}".format(row['verbatim_value'], interpreted_value))
             interpreted_value = interpreted_value.replace(coll, '').strip()
-            db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'collector', 'interpreted_value': interpreted_value, 'verbatim_value': ocr_block['block_text'], 'data_source': '', 'match_score': 0})
-            logger1.info('Collector ({}): {}'.format(coll, interpreted_value))
-            break
+            if len(interpreted_value) > 3:
+                db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'collector', 'data_format': 'collector', 'interpreted_value': interpreted_value, 'verbatim_value': ocr_block['block_text'], 'data_source': '', 'match_score': 0})
+                logger1.info('Collector ({}): {}'.format(coll, interpreted_value))
+                break
 
 
 
@@ -334,7 +335,7 @@ db_cursor.execute("SELECT distinct data_type FROM ocr_interpreted_blocks WHERE d
 data_types = db_cursor.fetchall()
 logger1.debug(db_cursor.query.decode("utf-8"))
 
-similarity_query = "SELECT data_type, interpreted_value, word_similarity(interpreted_value, %(text_block)s) as sml FROM ocr_interpreted_blocks ORDER BY sml DESC LIMIT 1"
+similarity_query = "SELECT data_type, data_format, interpreted_value, word_similarity(interpreted_value, %(text_block)s) as sml FROM ocr_interpreted_blocks ORDER BY sml DESC LIMIT 1"
 
 #Iterate data_types
 for data_type in data_types:
@@ -355,7 +356,7 @@ for data_type in data_types:
                 record = db_cursor.fetchone()
                 logger1.debug(db_cursor.query.decode("utf-8"))
                 if record['sml'] > 0.8:
-                    db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': record['data_type'], 'interpreted_value': ocr_block['block_text'], 'verbatim_value': ocr_block['block_text'], 'data_source': 'similarity', 'match_score': record['sml']})
+                    db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': record['data_type'], 'data_format': record['data_format'], 'interpreted_value': ocr_block['block_text'], 'verbatim_value': ocr_block['block_text'], 'data_source': 'similarity', 'match_score': record['sml']})
                     logger1.debug(db_cursor.query.decode("utf-8"))
 
 

@@ -15,7 +15,7 @@ from pyfiglet import Figlet
 
 
 #Script variables
-script_title = "Google Vision OCR"
+script_title = "OCR using Google Vision"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
 ver = "0.1"
 #2020-06-11
@@ -88,7 +88,7 @@ print("\n\nFound {} files.".format(len(list_of_files)))
 for filename in list_of_files:
     #Create entry for file
     print("\n\nCreating database record for {}...".format(filename))
-    db_cursor.execute("INSERT INTO ocr_documents (project_id, filename, ocr_source) VALUES (%(project_id)s, %(filename)s, %(source)s) RETURNING document_id", {'project_id': settings.project_id, 'filename': Path(filename).name, 'source': settings.source})
+    db_cursor.execute("INSERT INTO ocr_documents (project_id, filename, ocr_source) VALUES (%(project_id)s, %(filename)s, %(source)s) RETURNING document_id", {'project_id': settings.project_id, 'filename': Path(filename).name, 'source': 'Google Vision API'})
     document_id = db_cursor.fetchone()
 
     #Open file

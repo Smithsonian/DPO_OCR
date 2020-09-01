@@ -10,6 +10,7 @@ library(plotly)
 
 # Settings ----
 source("settings.R")
+ui_ver <- "0.1"
 
 
 #UI
@@ -28,20 +29,22 @@ ui <- fluidPage(
            uiOutput("image"),
            plotlyOutput("plot")
     ),
-    # column(width = 2,
-    #        uiOutput("ocr_transcript", style = "font-size: 80%;")
-    # ),
+    column(width = 2,
+           uiOutput("ocr_transcript", style = "font-size: 80%;")
+    ),
     column(width = 3,
-           #uiOutput("transcript", style = "font-size: 80%;")
-           uiOutput("transcript")
+           uiOutput("transcript", style = "font-size: 80%;")
     )
   ),
-  uiOutput("main")
+  uiOutput("main"),
+  hr(),
+  #footer ----
+  uiOutput("footer")
 )
 
 # Define server logic
 server <- function(input, output, session) {
-  
+
   #Connect to the database ----
   if (Sys.info()["nodename"] == "shiny.si.edu"){
     #For RHEL7 odbc driver
@@ -294,7 +297,11 @@ server <- function(input, output, session) {
     print(transcript_query)
     transcript_data <- dbGetQuery(db, transcript_query)
     
-    if (dim(transcript_data)[1] == 1){
+    transcript_query <- paste0("SELECT * FROM ocr_interpreted_blocks WHERE document_id IN (SELECT document_id from ocr_documents WHERE filename = '", filename, ".jpg')")
+    print(transcript_query)
+    ocr_transcript_data <- dbGetQuery(db, transcript_query)
+    
+    if (dim(ocr_transcript_data)[1] > 0){
       block_html <- paste0("<div class=\"panel panel-info\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Data from Transcription</h3></div><div class=\"panel-body\">",
                            "<dl>
                               <dt>Collector</dt>
@@ -395,7 +402,11 @@ server <- function(input, output, session) {
     })
   
   
-  
+
+  # footer ----
+  output$footer <- renderUI({
+    HTML(paste0("<br><div class=\"footer navbar-fixed-bottom\" style=\"background: #FFFFFF;\"><br><p>&nbsp;&nbsp;<a href=\"https://dpo.si.edu\" target = _blank>Digitization Program Office, OCIO</a>, Smithsonian | <a href=\"https://github.com/Smithsonian/DPO_OCR\" target = _blank>DPO_OCR Shiny Explorer</a> version ", ui_ver, "</p></div>"))
+  })  
 }
 
 # Run the application 

@@ -1,8 +1,6 @@
 #ID of the project
 project_id = ""
 
-source = "Google Vision API"
-
 ##################################
 # Database creds
 ##################################
@@ -31,5 +29,4 @@ crop_buffer = 30
 
 line_width = 3
 
-box_draw = "words"
-#words, blocks
+box_draw = "words" #words or blocks
