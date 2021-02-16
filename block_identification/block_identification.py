@@ -316,10 +316,14 @@ for ocr_block in ocr_blocks:
                 interpreted_value = interpreted_value.replace(row['verbatim_value'], '').strip()
                 print("{}|{}".format(row['verbatim_value'], interpreted_value))
             interpreted_value = interpreted_value.replace(coll, '').strip()
-            if len(interpreted_value) > 3:
-                db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'collector', 'data_format': 'collector', 'interpreted_value': interpreted_value, 'verbatim_value': ocr_block['block_text'], 'data_source': '', 'match_score': 0})
-                logger1.info('Collector ({}): {}'.format(coll, interpreted_value))
-                break
+            coll2 = [col.replace(interpreted_value, '') for col in settings.collector_strings]
+            if interpreted_value in coll2:
+                continue
+            else:
+                if len(interpreted_value) > 3:
+                    db_cursor.execute(insert_q, {'document_id': ocr_block['document_id'], 'block_id': ocr_block['block'], 'data_type': 'collector', 'data_format': 'collector', 'interpreted_value': interpreted_value, 'verbatim_value': ocr_block['block_text'], 'data_source': '', 'match_score': 0})
+                    logger1.info('Collector ({}): {}'.format(coll, interpreted_value))
+                    break
 
 
 

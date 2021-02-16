@@ -44,3 +44,12 @@ def ignore_text(word_text, filename):
         return False
     #return False
 
+
+
+#minimum score to insert
+insert_min = 180
+
+token_set_ratio_min = 96
+
+#Insert when score for geo localities are at least
+geo_min = 96
