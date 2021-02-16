@@ -15,7 +15,7 @@ from pyfiglet import Figlet
 #Script variables
 script_title = "OCR using Google Vision"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
-ver = "0.1"
+ver = "0.2"
 #2020-06-11
 vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/google_vision/toolversion.txt"
 repo = "https://github.com/Smithsonian/DPO_OCR/"
@@ -304,15 +304,10 @@ for filename in list_of_files:
                         draw.line([(wrd_vertices_x_2_line, wrd_vertices_y_2_line), (wrd_vertices_x_3_line, wrd_vertices_y_3_line)], fill = linecolor, width = settings.line_width)
                         draw.line([(wrd_vertices_x_3_line, wrd_vertices_y_3_line), (wrd_vertices_x_0_line, wrd_vertices_y_0_line)], fill = linecolor, width = settings.line_width)
                         del draw
-                        # draw.line([(int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width), (int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width)], fill = linecolor, width = settings.line_width)
-                        # draw.line([(int(wrd_vertices_x_1) + settings.line_width, int(wrd_vertices_y_1) - settings.line_width), (int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width)], fill = linecolor, width = settings.line_width)
-                        # draw.line([(int(wrd_vertices_x_2) + settings.line_width, int(wrd_vertices_y_2) + settings.line_width), (int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width)], fill = linecolor, width = settings.line_width)
-                        # draw.line([(int(wrd_vertices_x_3) - settings.line_width, int(wrd_vertices_y_3) + settings.line_width), (int(wrd_vertices_x_0) - settings.line_width, int(wrd_vertices_y_0) - settings.line_width)], fill = linecolor, width = settings.line_width)
-                        # del draw
                     word_list.append([word_text, word.confidence, [[wrd_vertices_x_0, wrd_vertices_y_0], [wrd_vertices_x_1, wrd_vertices_y_1], [wrd_vertices_x_2, wrd_vertices_y_2], [wrd_vertices_x_3, wrd_vertices_y_3]]])
                     db_cursor.execute("INSERT INTO ocr_entries (document_id, word_text, block, page, word, word_line, confidence, vertices_x_0, vertices_y_0, vertices_x_1, vertices_y_1, vertices_x_2, vertices_y_2, vertices_x_3, vertices_y_3) VALUES (%(document_id)s, %(word_text)s, %(block)s, %(page)s, %(word)s, %(word_line)s, %(confidence)s, %(vertices_x_0)s, %(vertices_y_0)s, %(vertices_x_1)s, %(vertices_y_1)s, %(vertices_x_2)s, %(vertices_y_2)s, %(vertices_x_3)s, %(vertices_y_3)s)", {'document_id': document_id, 'word_text': word_text, 'block': b, 'page': p, 'word': w, 'word_line': word_line, 'confidence': word.confidence, 'vertices_x_0': wrd_vertices_x_0, 'vertices_y_0': wrd_vertices_y_0, 'vertices_x_1': wrd_vertices_x_1, 'vertices_y_1': wrd_vertices_y_1, 'vertices_x_2': wrd_vertices_x_2, 'vertices_y_2': wrd_vertices_y_2, 'vertices_x_3': wrd_vertices_x_3, 'vertices_y_3': wrd_vertices_y_3})
 
-    if settings.crop == True:
+    if settings.crop == True and len(response.text_annotations) > 0:
         #Crop image
         results_poly = response.text_annotations[0].bounding_poly
         results_minx = min(results_poly.vertices[0].x, results_poly.vertices[1].x, results_poly.vertices[2].x, results_poly.vertices[3].x)

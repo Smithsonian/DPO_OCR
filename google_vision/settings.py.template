@@ -24,6 +24,7 @@ def ignore_text(word_text, filename):
     else:
         return False
 
+crop = True
 
 crop_buffer = 30
 
