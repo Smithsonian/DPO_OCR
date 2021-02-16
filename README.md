@@ -1,2 +1,3 @@
 # DPO_OCR
-OCR system for easy-to-use structured export of the results
+
+Tests of OCR systems for the digitization of analog text. 
