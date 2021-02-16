@@ -5,11 +5,13 @@ library(dplyr)
 library(readr)
 library(plotly)
 library(DT)
-
+#library(tm)
+#library(wordcloud)
+#library(memoise)
 
 # Settings ----
 source("settings.R")
-ui_ver <- "0.2.1"
+ui_ver <- "0.2.0"
 
 
 #UI----
@@ -22,17 +24,15 @@ ui <- fluidPage(
   fluidRow(
     column(width = 2,
            uiOutput("filetext"),
-           uiOutput("summary")#,
-           #plotlyOutput("plot")
+           uiOutput("summary"),
+           plotlyOutput("plot")
     ),
     column(width = 6,
-           #uiOutput("results_h"),
-           
-           #DT::dataTableOutput("results"),
+           uiOutput("results_h"),
+           DT::dataTableOutput("results"),
            # uiOutput("results2_h"),
            # DT::dataTableOutput("results2"),
-           uiOutput("image"),
-           plotlyOutput("plot")
+           uiOutput("image")
     ),
    column(width = 4,
           #uiOutput("ocr_transcript", style = "font-size: 80%;")
@@ -57,7 +57,7 @@ server <- function(input, output, session) {
     #For RHEL7 odbc driver
     pg_driver = "PostgreSQL"
   }else if (Sys.info()["nodename"] == "OCIO-2SJKVD22"){
-    #For Ubuntu odbc driver
+    #For RHEL7 odbc driver
     pg_driver = "PostgreSQL Unicode(x64)"
   }else{
     pg_driver = "PostgreSQL Unicode"
@@ -169,7 +169,7 @@ server <- function(input, output, session) {
     
     #if (filename != "NULL"){req(FALSE)}
     
-    files_query <- paste0("SELECT d.filename, ROUND(AVG(e.confidence)::numeric, 4) as mean_confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid GROUP BY d.filename ORDER BY mean_confidence DESC NULLS LAST")
+    files_query <- paste0("SELECT d.filename, ROUND(AVG(e.confidence)::numeric, 4) as mean_confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid GROUP BY d.filename ORDER BY mean_confidence DESC")
     filelist <- dbGetQuery(db, files_query)
     
     files <- stringr::str_replace(filelist$filename, '.jpg', '')
@@ -179,19 +179,10 @@ server <- function(input, output, session) {
     }
     
     if (filename == "NULL"){
-      #sel_list <- selectInput("filename", "Select a file:", files)
-      sel_list <- selectInput("filename", "Select a file:", choices = NULL)
+      sel_list <- selectInput("filename", "Select a file:", files)
     }else{
-      #sel_list <- selectInput("filename", "Select a file:", files, filename)
-      sel_list <- selectInput("filename", "Select a file:", filename, choices = NULL)
+      sel_list <- selectInput("filename", "Select a file:", files, filename)
     }
-    
-    if (filename == "NULL"){
-      updateSelectizeInput(session, 'filename', choices = files, server = TRUE)
-    }else{
-      updateSelectizeInput(session, 'filename', choices = files, selected = filename, server = TRUE)
-    }
-    
     
     tagList(
       HTML(paste0("<h2><a href=\"./\">", proj_name, "</a></h2>")),
@@ -236,13 +227,9 @@ server <- function(input, output, session) {
     print(file_query)
     file_data <- dbGetQuery(db, file_query)
     
-    block_html <- ""
+    block_html <- paste0("<small><em>Mouseover for word confidence;<br>Mean line confidence in parenthesis</em></small>")
     
-    if (length(file_data$block) > 0){
-    
-      block_html <- paste0("<small><em>Mouseover for word confidence;<br>Mean line confidence in parenthesis</em></small>")
-      
-      for (b in seq(min(file_data$block), max(file_data$block))){
+    for (b in seq(min(file_data$block), max(file_data$block))){
       print(b)
       block_data <- filter(file_data, block == b)
       
@@ -283,6 +270,8 @@ server <- function(input, output, session) {
           blk_types <- paste0("<em>", block_types$data_type, "</em>")
         }
         
+        #pre_txt <- paste0("<div class=\"panel panel-", header_color, "\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Block type: [", blk_types, "] <small>(mean confidence: ", blk_conf, ")</small></h3></div><div class=\"panel-body\">")
+        #pre_txt <- paste0("<div class=\"panel\"><div class=\"panel-heading\" style=\"background:", header_color, ";\"><h3 class=\"panel-title\">Block type: [", blk_types, "] <small>(block confidence: ", blk_conf, ")</small></h3></div><div class=\"panel-body\">")
         pre_txt <- paste0("<div class=\"panel\"><div class=\"panel-heading\" style=\"background:", header_color, ";\"><h3 class=\"panel-title\">Block confidence: ", blk_conf, "</small></h3></div><div class=\"panel-body\">")
         
         post_box <- paste0("</div></div></div>")
@@ -296,7 +285,8 @@ server <- function(input, output, session) {
           if (dim(line_data)[1] == 0){
             next
           }
-
+          #if (dim(line_data)[1] > 1){
+          
           conf <- round(mean(as.numeric(line_data$confidence)), 2)
           
           if (conf > 0.9){
@@ -315,6 +305,8 @@ server <- function(input, output, session) {
           line_text <- paste0(line_text, " (<span style=\"color: ", text_color, "\">", conf, '</span>)<br>')
           
         }
+        
+        #pre_lines <- paste0(pre_lines, pre_txt, line_text, "</p>")
         
         block_html <- paste0(block_html, pre_txt, line_text)
         
@@ -337,11 +329,7 @@ server <- function(input, output, session) {
         block_html <- paste0(block_html, post_box)
       }
     }
-    
-    }else{
-      block_html <- paste0(block_html, "<p><em>No text was identified.</em></p>")
-    }
-    
+  
     HTML(block_html)
   })
   
@@ -356,19 +344,156 @@ server <- function(input, output, session) {
     #img <- readJPEG("www/images/bee2.jpg")
     
     tagList(
-      #p("Text identified in image:"),
-      #HTML(paste0("<img src=\"images/", filename, ".jpg\" width = \"100%\">")),
-      HTML(paste0("<img src=\"", image_annotated_url, "?file=", filename, "&project=", project_id, "\" width = \"", image_width, "\">")),
+      p("Text identified in image:"),
+      HTML(paste0("<img src=\"images/", filename, ".jpg\" width = \"100%\">")),
       br(),
       br(),
       p("Original image:"),
-      HTML(paste0("<img src=\"", image_url, "?file=", filename, "&project=", project_id, "\" width = \"", image_width, "\">"))
+      HTML(paste0("<img src=\"images_sm/", filename, ".jpg\" width = \"100%\">"))
     )
+    
     
   })
   
   
-
+  #ocr_transcript----
+  output$ocr_transcript <- DT::renderDataTable({
+    query <- parseQueryString(session$clientData$url_search)
+    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    
+    if (filename == "NULL"){req(FALSE)}
+    
+    transcript_query1 <- paste0("SELECT 
+                string_agg(DISTINCT a.collector, ',') as collector, 
+                string_agg(DISTINCT a.verbatim_date, ',') as verbatim_date, 
+                string_agg(DISTINCT a.verbatim_locality, ',') as verbatim_locality, 
+                string_agg(DISTINCT a.country, ',') as country, 
+                string_agg(DISTINCT a.state_territory, ',') as state_territory, 
+                string_agg(DISTINCT a.district_county, ',') as district_county, 
+                string_agg(DISTINCT a.precise_locality, ',') as precise_locality, 
+                string_agg(DISTINCT a.elevation, ',') as elevation
+            FROM 
+                ocr_transcription_ento o LEFT JOIN 
+                        ocr_transcription_ento_auto a ON (replace(o.filename, '.jpg', '') = a.filename)
+            WHERE 
+                replace(o.filename, '.jpg', '') = '", filename, "' 
+            GROUP BY o.filename")
+    transcript_query2 <- paste0("
+            SELECT 
+                collector, 
+                verbatim_date, 
+                verbatim_locality, 
+                country, 
+                state_territory, 
+                district_county, 
+                precise_locality, 
+                elevation
+            FROM 
+                ocr_transcription_ento
+            WHERE 
+                replace(filename, '.jpg', '') = '", filename, "'")
+    
+    transcript_data1 <- data.frame(t(dbGetQuery(db, transcript_query1)))
+    
+    names(transcript_data1) <- c("Automatic Matching")
+    
+    transcript_data2 <- data.frame(t(dbGetQuery(db, transcript_query2)))
+    
+    names(transcript_data2) <- c("Manual Transcription")
+    
+    t_data <- cbind(transcript_data2, transcript_data1)
+    
+    DT::datatable(
+      t_data,
+      escape = FALSE,
+      options = list(
+        searching = FALSE,
+        ordering = TRUE, 
+        paging = FALSE
+      ),
+      rownames = TRUE,
+      selection = 'none'
+    ) %>% formatStyle(
+      c('Automatic Matching', 'Manual Transcription'),
+      backgroundColor = styleEqual(c(NA), c('#ECECEC'))
+    ) 
+    
+    
+    # 
+    # #if (dim(transcript_data)[1] == 1){
+    #   block_html <- paste0("<div class=\"panel panel-success\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Data from Auto Detection</h3></div><div class=\"panel-body\">",
+    #                        "<dl>
+    #                           <dt>Collector</dt>
+    #                           <dd>", transcript_data$collector, "</dd>
+    #                           <dt>Date</dt>
+    #                           <dd>", transcript_data$verbatim_date, "</dd>
+    #                           <dt>Locality</dt>
+    #                           <dd>", transcript_data$verbatim_locality, "</dd>
+    #                           <dt>Country</dt>
+    #                           <dd>", transcript_data$country, "</dd>
+    #                           <dt>State/Territory</dt>
+    #                           <dd>", transcript_data$state_territory, "</dd>
+    #                           <dt>District/County</dt>
+    #                           <dd>", transcript_data$district_county, "</dd>
+    #                           <dt>Precise Locality</dt>
+    #                           <dd>", transcript_data$precise_locality, "</dd>
+    #                           <dt>Lat/Lon</dt>
+    #                           <dd>", transcript_data$latitude_longitude, "</dd>
+    #                           <dt>Elevation</dt>
+    #                           <dd>", transcript_data$elevation, "</dd>
+    #                           <dt>Other Numbers</dt>
+    #                           <dd>", transcript_data$other_numbers, "</dd>
+    #                         </dl>",
+    #                        "</div></div></div>")
+    #   
+    #   HTML(block_html)
+    #}
+  })
+  
+  
+  
+  # #transcript----
+  # output$transcript <- renderUI({
+  #   query <- parseQueryString(session$clientData$url_search)
+  #   filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+  #   
+  #   if (filename == "NULL"){req(FALSE)}
+  #   
+  #   transcript_query <- paste0("SELECT * FROM ocr_transcription_ento WHERE filename = '", filename, ".jpg'")
+  #   print(transcript_query)
+  #   transcript_data <- dbGetQuery(db, transcript_query)
+  #   
+  #   if (dim(transcript_data)[1] == 1){
+  #     block_html <- paste0("<div class=\"panel panel-info\"><div class=\"panel-heading\"><h3 class=\"panel-title\">Data from Transcription</h3></div><div class=\"panel-body\">",
+  #                          "<dl>
+  #                             <dt>Collector</dt>
+  #                             <dd>", transcript_data$collector, "</dd>
+  #                             <dt>Date</dt>
+  #                             <dd>", transcript_data$verbatim_date, "</dd>
+  #                             <dt>Locality</dt>
+  #                             <dd>", transcript_data$verbatim_locality, "</dd>
+  #                             <dt>Country</dt>
+  #                             <dd>", transcript_data$country, "</dd>
+  #                             <dt>State/Territory</dt>
+  #                             <dd>", transcript_data$state_territory, "</dd>
+  #                             <dt>District/County</dt>
+  #                             <dd>", transcript_data$district_county, "</dd>
+  #                             <dt>Precise Locality</dt>
+  #                             <dd>", transcript_data$precise_locality, "</dd>
+  #                             <dt>Lat/Lon</dt>
+  #                             <dd>", transcript_data$latitude_longitude, "</dd>
+  #                             <dt>Elevation</dt>
+  #                             <dd>", transcript_data$elevation, "</dd>
+  #                             <dt>Other Numbers</dt>
+  #                             <dd>", transcript_data$other_numbers, "</dd>
+  #                           </dl>",
+  #                          "</div></div></div>")
+  #     
+  #     HTML(block_html)
+  #   }
+  # })
+  
+  
   
   #plot----
   output$plot <- renderPlotly({
@@ -377,9 +502,11 @@ server <- function(input, output, session) {
     
     if (filename != "NULL"){req(FALSE)}
     
+    #files_query <- paste0("SELECT d.filename, ROUND(AVG(e.confidence)::numeric, 4) as mean_confidence FROM ocr_documents d LEFT JOIN ocr_entries e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid GROUP BY d.filename ORDER BY mean_confidence DESC")
     files_query <- paste0("SELECT e.confidence FROM ocr_documents d LEFT JOIN ocr_blocks e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid ORDER BY confidence DESC")
     filelist <- dbGetQuery(db, files_query)
     
+    #fig <- plot_ly(data = filelist, x = ~mean_confidence, height = "560") %>% 
     fig <- plot_ly(data = filelist, x = ~confidence, height = "560") %>% 
       add_histogram(nbinsx = 40) %>% 
       layout(
