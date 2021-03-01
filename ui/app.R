@@ -19,13 +19,20 @@ ui <- fluidPage(
   #titlePanel("OCR test"),
   uiOutput("selectfile"),
   hr(),
+  tags$style(HTML("
+                  #filetext {
+                    height:600px;
+                    overflow-y:scroll
+                  }
+                  ")),
   fluidRow(
     column(width = 2,
-           uiOutput("filetext"),
-           uiOutput("summary")#,
+           uiOutput("summary"),
+           uiOutput("filetext")
+           #,
            #plotlyOutput("plot")
     ),
-    column(width = 6,
+    column(width = 10,
            #uiOutput("results_h"),
            
            #DT::dataTableOutput("results"),
@@ -33,11 +40,11 @@ ui <- fluidPage(
            # DT::dataTableOutput("results2"),
            uiOutput("image"),
            plotlyOutput("plot")
-    ),
-   column(width = 4,
-          #uiOutput("ocr_transcript", style = "font-size: 80%;")
-          DT::dataTableOutput("ocr_transcript")
-   )
+    )#,
+   # column(width = 4,
+   #        #uiOutput("ocr_transcript", style = "font-size: 80%;")
+   #        DT::dataTableOutput("ocr_transcript")
+   # )
    # column(width = 2,
    #        uiOutput("transcript", style = "font-size: 80%;")
    # ),
@@ -82,7 +89,7 @@ server <- function(input, output, session) {
   #summary----
   output$summary <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     
     if (filename != "NULL"){req(FALSE)} 
     
@@ -165,7 +172,7 @@ server <- function(input, output, session) {
   #selectfile----
   output$selectfile <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     
     #if (filename != "NULL"){req(FALSE)}
     
@@ -217,13 +224,15 @@ server <- function(input, output, session) {
   #filetext----
   output$filetext <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    #Sanitize input
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     
     if (filename == "NULL"){req(FALSE)}
     
-    doc_query <- paste0("SELECT document_id FROM ocr_documents WHERE project_id = '", project_id, "'::uuid AND filename = '", filename, ".jpg' LIMIT 1")
+    #doc_query <- paste0("SELECT document_id FROM ocr_documents WHERE project_id = '", project_id, "'::uuid AND filename = '", filename, ".jpg' LIMIT 1")
     #print(doc_query)
-    doc_id <- dbGetQuery(db, doc_query)[1]
+    doc_id <- dbGetQuery(db, "SELECT document_id FROM ocr_documents WHERE project_id = ? AND filename = ? LIMIT 1", params = c(project_id, paste0(filename, '.jpg')))
+    #doc_id <- dbGetQuery(db, doc_query)[1]
 
     if (length(doc_id$document_id) == 0){
       output$main <- renderUI({
@@ -237,6 +246,8 @@ server <- function(input, output, session) {
     file_data <- dbGetQuery(db, file_query)
     
     block_html <- ""
+    
+    imagemap <- "<map name=\"workmap\">"
     
     if (length(file_data$block) > 0){
     
@@ -276,7 +287,7 @@ server <- function(input, output, session) {
         }
         
         block_q <- paste0("SELECT block_id, string_agg(data_type, ',') as data_type FROM ocr_interpreted_blocks WHERE document_id = '", doc_id$document_id, "'::uuid and block_id = ", b, " GROUP BY block_id")
-        print(block_q)
+        print("block_q")
         block_types <- dbGetQuery(db, block_q)
         blk_types <- "<em>NA</em>"
         if (dim(block_types)[1] == 1){
@@ -310,6 +321,11 @@ server <- function(input, output, session) {
           for (j in seq(min(line_data$word), max(line_data$word))){
             this_word <- line_data[line_data$word == j,]
             line_text <- paste0(line_text, "<abbr title =\"", round(this_word$confidence, 2), "\">", this_word$word_text, "</abbr> ")
+            print("this_word")
+            print(this_word)
+            #imagemap entries----
+            imagemap <- paste0(imagemap, "<area shape=\"rect\" coords=\"", this_word$vertices_x_0, ",", this_word$vertices_y_0, ",", this_word$vertices_x_2, ",", this_word$vertices_y_2, "\" alt=\"", this_word$word_text, " (", round(this_word$confidence, 2), ")\" title=\"", this_word$word_text, " (", round(this_word$confidence, 2), ")\" alt=\"", this_word$word_text, " (", round(this_word$confidence, 2), ")\" style=\"border-style: dotted;\">\n")
+            
           }
           
           line_text <- paste0(line_text, " (<span style=\"color: ", text_color, "\">", conf, '</span>)<br>')
@@ -342,23 +358,26 @@ server <- function(input, output, session) {
       block_html <- paste0(block_html, "<p><em>No text was identified.</em></p>")
     }
     
-    HTML(block_html)
+    
+    imagemap <- paste0(imagemap, "</map>")
+    
+    tagList(
+      HTML(imagemap),
+      HTML(block_html)
+    )
+    
   })
   
   
   #image----
   output$image <- renderUI({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     
     if (filename == "NULL"){req(FALSE)}
     
-    #img <- readJPEG("www/images/bee2.jpg")
-    
     tagList(
-      #p("Text identified in image:"),
-      #HTML(paste0("<img src=\"images/", filename, ".jpg\" width = \"100%\">")),
-      HTML(paste0("<img src=\"", image_annotated_url, "?file=", filename, "&project=", project_id, "\" width = \"", image_width, "\">")),
+      HTML(paste0("<img src=\"", image_annotated_url, "?file=", filename, "&project=", project_id, "\" usemap=\"#workmap\">")),
       br(),
       br(),
       p("Original image:"),
@@ -373,7 +392,7 @@ server <- function(input, output, session) {
   #plot----
   output$plot <- renderPlotly({
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     
     if (filename != "NULL"){req(FALSE)}
     
@@ -395,7 +414,7 @@ server <- function(input, output, session) {
   output$results_h <- renderUI({
     
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     if (filename != "NULL"){req(FALSE)}
     
     h2("Matches by reference sample size per field")
@@ -405,7 +424,7 @@ server <- function(input, output, session) {
   output$results2_h <- renderUI({
     
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     if (filename != "NULL"){req(FALSE)}
     
     h2("Matches by controlled vocabulary per field")
@@ -416,7 +435,7 @@ server <- function(input, output, session) {
   output$results <- DT::renderDataTable({
   
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     if (filename != "NULL"){req(FALSE)}
     
     results_table <- data.frame()
@@ -499,7 +518,7 @@ server <- function(input, output, session) {
   output$results2 <- DT::renderDataTable({
     
     query <- parseQueryString(session$clientData$url_search)
-    filename <- gsub("[^[:alnum:][:space:]]", "", query['filename'])
+    filename <- gsub("[^[:alnum:][:space:]][_]", "", query['filename'])
     if (filename != "NULL"){req(FALSE)}
     
     results_table <- data.frame()
