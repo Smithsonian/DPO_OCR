@@ -153,6 +153,12 @@ server <- function(input, output, session) {
                   o.document_id = docs.document_id")
     int_blocks <- dbGetQuery(db, summary_query)
     
+    if (int_blocks$no_blocks == 0){
+      field_html <- ""
+    }else{
+      field_html <- p(paste0("Number of blocks with field assigned: ", int_blocks$no_blocks, " (", round((int_blocks$no_blocks/blocks$no_blocks) * 100 ,2), "%)"))
+    }
+    
     tagList(
       h3("Summary"),
       HTML(paste0("<p>OCR Source: ", summary$ocr_source, br(), "<small>Min confidence allowed: 0.70</small></p>")),
@@ -160,7 +166,7 @@ server <- function(input, output, session) {
       p(paste0("Number of files with successful OCR: ", summary_docs$no_docs, " (", round((summary_docs$no_docs/summary$no_files) * 100 ,2), "%)")),
       hr(),
       p(paste0("Number of total blocks of text: ", blocks$no_blocks)),
-      p(paste0("Number of blocks with field assigned: ", int_blocks$no_blocks, " (", round((int_blocks$no_blocks/blocks$no_blocks) * 100 ,2), "%)"))
+      field_html
       
     )
   })
