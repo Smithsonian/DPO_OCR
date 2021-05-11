@@ -6,4 +6,4 @@ OCR code and test for systems for the digitization of analog text.
 * database - sql for the database that contains the data
 * ML - Scripts to OCR images using Machine Learning systems
 * old - Old scripts, may be useful for someone
-* ui - User interfase to see the results
+* ui - User interface to see the results
