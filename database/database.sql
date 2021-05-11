@@ -3,7 +3,7 @@ CREATE DATABASE ocr;
 
 \connect ocr;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
+CREATE EXTENSION IF NOT EXISTS unaccent;
 
 --pg_trgm extension
 CREATE EXTENSION pg_trgm;
@@ -44,9 +44,13 @@ CREATE TABLE ocr_documents
 (
     document_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
     project_id uuid REFERENCES ocr_projects(project_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    doc_version text DEFAULT 'default',
+    doc_section text DEFAULT 'default',
     filename text NOT NULL,
     document_title text,
     ocr_source text NOT NULL,
+    doc_width int,
+    doc_height int,
     updated_at timestamp with time zone DEFAULT NOW()
 );
 CREATE INDEX ocr_documents_did_idx ON ocr_documents USING BTREE(document_id);
@@ -161,7 +165,7 @@ CREATE TRIGGER trigger_updated_at_ocr_taxonomy
 
 
 
---ocr_interpreted_blocks
+--ocr_blocks
 DROP TABLE IF EXISTS ocr_blocks CASCADE;
 CREATE TABLE ocr_blocks
 (
@@ -186,3 +190,62 @@ CREATE TRIGGER trigger_updated_at_ocr_block
   FOR EACH ROW
   EXECUTE PROCEDURE updated_at_files();
 
+
+
+
+
+
+
+
+--ocr_zones
+DROP TABLE IF EXISTS ocr_zones CASCADE;
+CREATE TABLE ocr_zones
+(
+    project_id uuid REFERENCES ocr_projects(project_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    zone_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+    doc_version text DEFAULT 'default',
+    doc_section text DEFAULT 'default',
+    field_name text NOT NULL,
+    field_order int DEFAULT 1,
+    word_separator text DEFAULT ' ',
+    row_no integer DEFAULT 1,
+    vertices_x_0 integer,
+    vertices_x_1 integer,
+    vertices_y_0 integer,
+    vertices_y_1 integer,
+    updated_at timestamp with time zone DEFAULT NOW()
+);
+CREATE INDEX ocr_zones_pid_idx ON ocr_zones USING BTREE(project_id);
+CREATE INDEX ocr_zones_zid_idx ON ocr_zones USING BTREE(zone_id);
+CREATE INDEX ocr_zones_fname_idx ON ocr_zones USING BTREE(field_name);
+
+CREATE TRIGGER trigger_updated_at_ocr_zones
+  BEFORE UPDATE ON ocr_zones
+  FOR EACH ROW
+  EXECUTE PROCEDURE updated_at_files();
+
+
+
+  --ocr_zonal_data
+  DROP TABLE IF EXISTS ocr_zonal_data CASCADE;
+  CREATE TABLE ocr_zonal_data
+  (
+      row_id uuid NOT NULL PRIMARY KEY DEFAULT uuid_generate_v4(),
+      document_id uuid REFERENCES ocr_documents(document_id) ON DELETE CASCADE ON UPDATE CASCADE,
+      entry_id text,
+      zone_id uuid REFERENCES ocr_zones(zone_id) ON DELETE CASCADE ON UPDATE CASCADE,
+      min_confidence numeric,
+      word_text text,
+      updated_at timestamp with time zone DEFAULT NOW()
+  );
+  ALTER TABLE ocr_zonal_data ADD CONSTRAINT ocr_zonal_data_did_bid_inval UNIQUE (document_id, entry_id, zone_id);
+
+  CREATE INDEX ocr_zonal_data_rid_idx ON ocr_zonal_data USING BTREE(row_id);
+  CREATE INDEX ocr_zonal_data_did_idx ON ocr_zonal_data USING BTREE(document_id);
+  CREATE INDEX ocr_zonal_data_eid_idx ON ocr_zonal_data USING BTREE(entry_id);
+  CREATE INDEX ocr_zonal_data_zid_idx ON ocr_zonal_data USING BTREE(zone_id);
+
+  CREATE TRIGGER trigger_updated_at_ocr_zonal_data
+    BEFORE UPDATE ON ocr_zonal_data
+    FOR EACH ROW
+    EXECUTE PROCEDURE updated_at_files();
