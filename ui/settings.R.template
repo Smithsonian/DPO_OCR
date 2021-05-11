@@ -4,3 +4,16 @@ pg_host <- ""
 pg_db <- ""
 
 project_id <- ""
+
+image_url <- "https://dpogis.si.edu/mdpp/ocr/image"
+image_annotated_url <- "https://dpogis.si.edu/mdpp/ocr/image_annotated"
+
+default_image_width <- 1400
+
+project_type <- "" #sample or coordinates
+
+table_pagelength <- 30
+
+table_hiddencols <- c(0,1,2)
+
+export_query <- ""
