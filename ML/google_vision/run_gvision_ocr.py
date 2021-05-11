@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 #
 # OCR Using Google Vision API and saves the results to a database
-# 
+#
 # To run: python3 ocr_to_db.py [path to jpg files]
 #
 
-import io, json, sys, os, psycopg2, glob
-from PIL import Image, ImageDraw 
+import io, json, sys, os, psycopg2, glob, shutil
+from PIL import Image, ImageDraw
 from PIL import ImagePath
 from pathlib import Path
 from pyfiglet import Figlet
@@ -15,9 +15,9 @@ from pyfiglet import Figlet
 #Script variables
 script_title = "OCR using Google Vision"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
-ver = "0.2"
-#2020-06-11
-vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/google_vision/toolversion.txt"
+ver = "0.3"
+#2021-03-02
+vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/ML/google_vision/toolversion.txt"
 repo = "https://github.com/Smithsonian/DPO_OCR/"
 lic = "Available under the Apache 2.0 License"
 
@@ -35,7 +35,7 @@ except:
     msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
     cur_ver = ver
 
-    
+
 
 
 f = Figlet(font='slant')
@@ -46,11 +46,17 @@ print(msg_text.format(subtitle = subtitle, ver = ver, repo = repo, lic = lic, cu
 
 
 
-if len(sys.argv) != 2:
-    print("Error: path to JPG files missing.")
+if len(sys.argv) != 4:
+    print("Error: arguments missing. Usage:\n\n ./run_gvision_ocr.py <folder with jpgs> <doc_version> <doc_section>")
     sys.exit(1)
 else:
-    path = sys.argv[1]
+    if os.path.isdir(sys.argv[1]) == False:
+        print("Error: path to JPG files does not exists.")
+        sys.exit(1)
+    else:
+        path = sys.argv[1]
+        doc_version = sys.argv[2]
+        doc_section = sys.argv[3]
 
 
 
@@ -61,81 +67,108 @@ if os.path.isfile("{}/creds.json".format(os.getcwd())) == False:
 else:
     os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = "{}/creds.json".format(os.getcwd())
 
+
 #Load google vision
 from google.cloud import vision_v1p3beta1 as vision
 client = vision.ImageAnnotatorClient()
 
 
 
-##Import database settings from settings.py file
+#Import database settings from settings.py file
 import settings
-
 
 conn = psycopg2.connect(host = settings.ocr_host, database = settings.ocr_db, user = settings.ocr_user, password = settings.ocr_password, connect_timeout = 60)
 conn.autocommit = True
 db_cursor = conn.cursor()
 
-
 #Delete old data from project
-db_cursor.execute("DELETE FROM ocr_documents WHERE project_id = %(project_id)s", {'project_id': settings.project_id})
+#db_cursor.execute("DELETE FROM ocr_documents WHERE project_id = %(project_id)s and doc_version = %(doc_version)s", {'project_id': settings.project_id, 'doc_version': doc_version})
+#Delete manually
 
 #Get images
 list_of_files = glob.glob('{}/*.jpg'.format(path))
 print("\n\nFound {} files.".format(len(list_of_files)))
 
 
+#Prepare folders
+#Create project folder
+if os.path.exists(settings.project_id) == False:
+    os.mkdir(settings.project_id)
+
+#Create subfolders
+ver_folder = "{}/{}".format(settings.project_id, doc_version)
+if os.path.exists(ver_folder) == False:
+    os.mkdir(ver_folder)
+version_folder = "{}/{}".format(ver_folder, doc_section)
+if os.path.exists(version_folder) == False:
+    os.mkdir(version_folder)
+
+response_folder = "{}/response".format(version_folder)
+if os.path.exists(response_folder) == False:
+    os.mkdir(response_folder)
+
+fulltext_folder = "{}/fulltext".format(version_folder)
+if os.path.exists(fulltext_folder) == False:
+    os.mkdir(fulltext_folder)
+
+csv_folder = "{}/csv".format(version_folder)
+if os.path.exists(csv_folder) == False:
+    os.mkdir(csv_folder)
+
+annotated_folder = "{}/images_annotated".format(version_folder)
+if os.path.exists(annotated_folder) == False:
+    os.mkdir(annotated_folder)
+
+original_folder = "{}/images_original".format(version_folder)
+if os.path.exists(original_folder) == False:
+    os.mkdir(original_folder)
+
+
+#Run each file
 for filename in list_of_files:
-    #Create entry for file
-    print("\n\nCreating database record for {}...".format(filename))
-    db_cursor.execute("INSERT INTO ocr_documents (project_id, filename, ocr_source) VALUES (%(project_id)s, %(filename)s, %(source)s) RETURNING document_id", {'project_id': settings.project_id, 'filename': Path(filename).name, 'source': 'Google Vision API'})
-    document_id = db_cursor.fetchone()
+    file_stem = Path(filename).stem
 
     #Open file
     print("Reading image...")
     with io.open(filename, 'rb') as image_file:
         content = image_file.read()
 
-    image = vision.types.Image(content=content)
+    #Open image using PIL
+    im = Image.open(filename)
 
+    #Create entry for file
+    print("\n\nCreating database record for {}...".format(filename))
+    db_cursor.execute("INSERT INTO ocr_documents (project_id, filename, doc_version, doc_section, ocr_source, doc_width, doc_height) VALUES (%(project_id)s, %(filename)s, %(doc_version)s, %(doc_section)s, %(source)s, %(doc_width)s, %(doc_height)s) RETURNING document_id", {'project_id': settings.project_id, 'filename': Path(filename).name, 'doc_version': doc_version, 'doc_section': doc_section, 'source': 'Google Vision API', 'doc_width': im.size[0], 'doc_height': im.size[1]})
+    document_id = db_cursor.fetchone()
+    print(db_cursor.query)
+
+    #Make a copy of the original
+    shutil.copy(filename, "{}/{}.jpg".format(original_folder, file_stem))
+
+    image = vision.types.Image(content = content)
+    # From google vision api beta snippets--
     # Language hint codes for handwritten OCR:
     # en-t-i0-handwrit, mul-Latn-t-i0-handwrit
-    # Note: Use only one language hint code per request for handwritten OCR.
-    image_context = vision.types.ImageContext(
-        language_hints=['en-t-i0-handwrit'])
+    image_context = vision.types.ImageContext(language_hints=['en-t-i0-handwrit'])
 
     print("Waiting for API response...")
-    response = client.document_text_detection(image=image, image_context=image_context)
+    response = client.document_text_detection(image = image, image_context = image_context)
 
-    if os.path.exists('response') == False:
-        os.mkdir('response')
-
-    with open('response/{}.json'.format(Path(filename).stem), 'w') as out:
+    with open('{}/{}.json'.format(response_folder, file_stem), 'w') as out:
         out.write(str(response.full_text_annotation.pages))
 
     ocr_text = response.full_text_annotation.text.split("\n")
 
     print('Full Text: \n=============\n{}\n=============\n'.format(response.full_text_annotation.text))
-    if os.path.exists('fulltext') == False:
-        os.mkdir('fulltext')
-
-    with open('fulltext/{}.txt'.format(Path(filename).stem), 'w') as out:
+    with open('{}/{}.txt'.format(fulltext_folder, file_stem), 'w') as out:
         out.write(response.full_text_annotation.text)
 
     #word, confidence, coords
-    if os.path.exists('csv') == False:
-        os.mkdir('csv')
-
-    data_file = 'csv/{}.csv'.format(Path(filename).stem)
-
-    if os.path.exists('images_annotated') == False:
-        os.mkdir('images_annotated')
-    img_file = 'images_annotated/{}.jpg'.format(Path(filename).stem)
-
+    data_file = '{}/{}.csv'.format(csv_folder, file_stem)
     wordfile = open(data_file, "w")
     wordfile.write("word_text,block,page,word,word_line,confidence,vertices_x_0,vertices_y_0,vertices_x_1,vertices_y_1,vertices_x_2,vertices_y_2,vertices_x_3,vertices_y_3\n")
 
-    #image for PIL
-    im = Image.open(filename)
+    img_file = '{}/{}.jpg'.format(annotated_folder, file_stem)
 
     word_list = []
     p = 0
@@ -307,6 +340,7 @@ for filename in list_of_files:
                     word_list.append([word_text, word.confidence, [[wrd_vertices_x_0, wrd_vertices_y_0], [wrd_vertices_x_1, wrd_vertices_y_1], [wrd_vertices_x_2, wrd_vertices_y_2], [wrd_vertices_x_3, wrd_vertices_y_3]]])
                     db_cursor.execute("INSERT INTO ocr_entries (document_id, word_text, block, page, word, word_line, confidence, vertices_x_0, vertices_y_0, vertices_x_1, vertices_y_1, vertices_x_2, vertices_y_2, vertices_x_3, vertices_y_3) VALUES (%(document_id)s, %(word_text)s, %(block)s, %(page)s, %(word)s, %(word_line)s, %(confidence)s, %(vertices_x_0)s, %(vertices_y_0)s, %(vertices_x_1)s, %(vertices_y_1)s, %(vertices_x_2)s, %(vertices_y_2)s, %(vertices_x_3)s, %(vertices_y_3)s)", {'document_id': document_id, 'word_text': word_text, 'block': b, 'page': p, 'word': w, 'word_line': word_line, 'confidence': word.confidence, 'vertices_x_0': wrd_vertices_x_0, 'vertices_y_0': wrd_vertices_y_0, 'vertices_x_1': wrd_vertices_x_1, 'vertices_y_1': wrd_vertices_y_1, 'vertices_x_2': wrd_vertices_x_2, 'vertices_y_2': wrd_vertices_y_2, 'vertices_x_3': wrd_vertices_x_3, 'vertices_y_3': wrd_vertices_y_3})
 
+    #If cropping is true and if there is something to crop
     if settings.crop == True and len(response.text_annotations) > 0:
         #Crop image
         results_poly = response.text_annotations[0].bounding_poly
@@ -329,9 +363,8 @@ for filename in list_of_files:
         im1.save(img_file, "JPEG")
     else:
         im.save(img_file, "JPEG")
-    
-    wordfile.close()
 
+    wordfile.close()
 
 
 sys.exit(0)
