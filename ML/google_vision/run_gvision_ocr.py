@@ -15,8 +15,8 @@ from pyfiglet import Figlet
 #Script variables
 script_title = "OCR using Google Vision"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
-ver = "0.3"
-#2021-03-02
+ver = "0.4"
+#2021-06-30
 vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/ML/google_vision/toolversion.txt"
 repo = "https://github.com/Smithsonian/DPO_OCR/"
 lic = "Available under the Apache 2.0 License"
@@ -71,7 +71,7 @@ else:
 #Load google vision
 from google.cloud import vision_v1p3beta1 as vision
 client = vision.ImageAnnotatorClient()
-
+from google.protobuf.json_format import MessageToJson
 
 
 #Import database settings from settings.py file
@@ -154,8 +154,10 @@ for filename in list_of_files:
     print("Waiting for API response...")
     response = client.document_text_detection(image = image, image_context = image_context)
 
+    #Write response to json
+    jsonObj = json.loads(MessageToJson(response, preserving_proto_field_name=True))
     with open('{}/{}.json'.format(response_folder, file_stem), 'w') as out:
-        out.write(str(response.full_text_annotation.pages))
+        out.write(json.dumps(jsonObj))
 
     ocr_text = response.full_text_annotation.text.split("\n")
 
