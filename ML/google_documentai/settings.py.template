@@ -1,0 +1,33 @@
+#ID of the project
+project_id = ""
+
+##################################
+# Database creds
+##################################
+#OCR database
+ocr_host = "localhost"
+ocr_db = "ocr"
+ocr_user = ""
+ocr_password = ""
+##################################
+
+
+#Words to ignore
+text_ignore = []
+
+
+#Function to ignore other lines
+def ignore_text(word_text, filename):
+    #
+    if word_text == filename.replace('.jpg', '').replace('USNMENT', ''):
+        return True
+    else:
+        return False
+
+crop = True
+
+crop_buffer = 30
+
+line_width = 3
+
+box_draw = "words" #words or blocks
