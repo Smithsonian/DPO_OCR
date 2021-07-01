@@ -18,7 +18,7 @@ from pathlib import Path
 # Load Google Cloud
 from google.cloud import documentai_v1beta3 as documentai
 from google.cloud.documentai_v1beta3 import Document
-from pyfiglet import Figlet
+# from pyfiglet import Figlet
 
 # Import project settings
 import settings
@@ -33,31 +33,30 @@ lic = "Available under the Apache 2.0 License"
 
 
 # Check for updates to the script
-try:
-    with urllib.request.urlopen(vercheck) as response:
-        current_ver = response.read()
-    cur_ver = current_ver.decode('ascii').replace('\n', '')
-    if cur_ver != ver:
-        msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}\nThis version is outdated. Current version is {cur_ver}.\nPlease download the updated version at: {repo}"
-    else:
-        msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
-except:
-    msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
-    cur_ver = ver
+# try:
+#     with urllib.request.urlopen(vercheck) as response:
+#         current_ver = response.read()
+#     cur_ver = current_ver.decode('ascii').replace('\n', '')
+#     if cur_ver != ver:
+#         msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}\nThis version is outdated. Current version is {cur_ver}.\nPlease download the updated version at: {repo}"
+#     else:
+#         msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
+# except:
+#     msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
+#     cur_ver = ver
 
-
-f = Figlet(font='slant')
-print("\n")
-print(f.renderText(script_title))
-# print(script_title)
-print(msg_text.format(subtitle=subtitle, ver=ver, repo=repo, lic=lic, cur_ver=cur_ver))
+# f = Figlet(font='slant')
+# print("\n")
+# print(f.renderText(script_title))
+# # print(script_title)
+# print(msg_text.format(subtitle=subtitle, ver=ver, repo=repo, lic=lic, cur_ver=cur_ver))
 
 
 if len(sys.argv) != 2:
     print("Error: arguments missing. Usage:\n\n ./run_docai.py <folder with tifs>")
     sys.exit(1)
 else:
-    if os.path.isdir(sys.argv[1]) == False:
+    if not os.path.isdir(sys.argv[1]):
         print("Error: path to TIF files does not exists.")
         sys.exit(1)
     else:
@@ -92,10 +91,10 @@ def _get_text(el):
     return response
 
 
-
 # Get images
 list_of_files = glob.glob('{}/*.tif'.format(path))
 print("\n\nFound {} files.".format(len(list_of_files)))
+
 
 # Run each file
 for filename in list_of_files:
@@ -113,8 +112,6 @@ for filename in list_of_files:
         out.write(Document.to_json(result.document))
     # Save values to csv
     data_file = '{}/{}.csv'.format(path, file_stem)
-    # wordfile = open(data_file, "w")
-    # wordfile.write("field_name,field_name_confidence,field_value,field_value_confidence\n")
     document = result.document
     for page in document.pages:
         print("Page number: {}".format(page.page_number))
@@ -140,7 +137,6 @@ for filename in list_of_files:
     #                 round(form_field.field_value.confidence, 4)
     #             )
     #         )
-
 
 
 sys.exit(0)
