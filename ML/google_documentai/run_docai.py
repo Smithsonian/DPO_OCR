@@ -109,7 +109,7 @@ for filename in list_of_files:
     result = client.process_document(request=request)
     print(" Writing results to {}.json\n\n".format(file_stem))
     with open('{}/{}.json'.format(path, file_stem), 'w') as out:
-        out.write(Document.to_json(result.document))
+        out.write(Document.to_json(result.document, preserving_proto_field_name=True))
     # Save values to csv
     data_file = '{}/{}.csv'.format(path, file_stem)
     document = result.document

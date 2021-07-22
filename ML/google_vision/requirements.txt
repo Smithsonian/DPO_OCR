@@ -1,3 +1,4 @@
 google-cloud-vision
 pyfiglet
 psycopg2
+Pillow

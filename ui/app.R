@@ -14,7 +14,7 @@ flog.logger("log", DEBUG, appender=appender.file(paste0("logs/", format(Sys.time
 source("settings.R")
 
 app_name <- "Zonal OCR"
-app_ver <- "0.2.2"
+app_ver <- "0.2.3"
 github_link <- "https://github.com/Smithsonian/DPO_OCR"
 
 
@@ -25,29 +25,38 @@ ui <- fluidPage(
   
   # Application title
   fluidRow(
-    column(width = 6,
+    column(width = 4,
             uiOutput("selectfile")
     ),
-    column(width = 6,
+    column(width = 3,
            shinycssloaders::withSpinner(uiOutput("summary"))
+    ),
+    column(width = 5,
+           plotlyOutput("plot", height = 200)
     )
   ),
   hr(),
-  # tags$style(HTML("
-  #                 #filetext {
-  #                   height:600px;
-  #                   overflow-y:scroll
-  #                 }
-  #                 ")),
+  tags$style(HTML("
+                  #image {
+                    height:600px;
+                    overflow-y:scroll;
+                  }
+                  ")),
+  tags$style(HTML("
+                  #filetext {
+                    height:600px;
+                    overflow-y:scroll;
+                  }
+                  ")),
   fluidRow(
-    column(width = 6,
+    column(width = 4,
            uiOutput("results_h"),
            shinycssloaders::withSpinner(DT::dataTableOutput("resultstable")),
            uiOutput("filetext")
     ),
-    column(width = 6, 
-           uiOutput("image"),
-           plotlyOutput("plot")
+    column(width = 8, 
+           uiOutput("image")
+           
     )
   ),
   uiOutput("main"),
@@ -266,11 +275,11 @@ server <- function(input, output, session) {
     
     block_html <- ""
     
-    imagemap <- "<map name=\"workmap\" style=\"visibility: hidden;\">"
+    imagemap <- "<map name=\"workmap\" style=\"visibility: hidden; width: 0px;\">"
     
     if (length(file_data$block) > 0){
     
-      block_html <- paste0("<small><em>Mouseover for word confidence;<br>Mean line confidence in parenthesis</em></small>")
+      block_html <- paste0("<p><small><em>Mouseover for word confidence;<br>Mean line confidence in parenthesis</em></small></p>")
       
       for (b in seq(min(file_data$block), max(file_data$block))){
         block_data <- filter(file_data, block == b)
@@ -403,8 +412,8 @@ server <- function(input, output, session) {
     imagemap <- paste0(imagemap, "</map>")
     
     tagList(
-      HTML(imagemap)#,
-      #HTML(block_html)
+      HTML(imagemap),
+      HTML(block_html)
     )
   })
   
@@ -426,11 +435,11 @@ server <- function(input, output, session) {
     
     tagList(
       p("Annotated image:"),
-      HTML(paste0("<img src=\"", image_annotated_url, "?file=", filename$filename, "&project=", project_id, "&width=", img_width, "&version=", filename$doc_version, "&section=", filename$doc_section, "\" width = \"", img_width, "\" usemap=\"#workmap\">")),
-      br(),
-      br(),
-      p("Original image:"),
-      HTML(paste0("<img src=\"", image_url, "?file=", filename$filename, "&version=", filename$doc_version, "&project=", project_id, "&section=", filename$doc_section, "\" width = \"", img_width, "\">"))
+      HTML(paste0("<img src=\"", image_annotated_url, "?file=", filename$filename, "&project=", project_id, "&width=", img_width, "&version=", filename$doc_version, "&section=", filename$doc_section, "\" width = \"", img_width, "\" usemap=\"#workmap\">"))#,
+    #   br(),
+    #   br(),
+    #   p("Original image:"),
+    #   HTML(paste0("<img src=\"", image_url, "?file=", filename$filename, "&version=", filename$doc_version, "&project=", project_id, "&section=", filename$doc_section, "\" width = \"", img_width, "\">"))
     )
     
   })
@@ -443,12 +452,12 @@ server <- function(input, output, session) {
     query <- parseQueryString(session$clientData$url_search)
     document_id <- gsub("[^[:alnum:][:space:]][_]", "", query['document_id'])
     
-    if (document_id != "NULL"){req(FALSE)}
+    #if (document_id != "NULL"){req(FALSE)}
     
     files_query <- paste0("SELECT e.confidence FROM ocr_documents d LEFT JOIN ocr_blocks e ON (d.document_id = e.document_id) WHERE project_id = '", project_id, "'::uuid ORDER BY confidence DESC")
     filelist <- dbGetQuery(db, files_query)
     
-    fig <- plot_ly(data = filelist, x = ~confidence, height = "560") %>% 
+    fig <- plot_ly(data = filelist, x = ~confidence, height = "200") %>% 
       add_histogram(nbinsx = 40) %>% 
       layout(
         title = "Histogram of text blocks by confidence value",
@@ -489,46 +498,90 @@ server <- function(input, output, session) {
   
   #datasetCSV ----
   datasetCSV <- reactive({
+    
     query <- parseQueryString(session$clientData$url_search)
     document_id <- gsub("[^[:alnum:][:space:]][_]", "", query['document_id'])
     if (document_id == "NULL"){req(FALSE)}
     
-    data_rows <- dbGetQuery(db, paste0("SELECT DISTINCT z.row_no FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999"))
-    
-    data_cols <- dbGetQuery(db, paste0("SELECT z.field_name, z.field_order FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999 GROUP BY z.field_name, z.field_order ORDER BY z.field_order"))
-    
-    doc_info <- dbGetQuery(db, paste0("SELECT filename, doc_version, doc_section FROM ocr_documents WHERE document_id = '", document_id, "'"))
-    
-    data <- data.frame(matrix(ncol = 4 + length(data_cols$field_name), data = NA), stringsAsFactors = FALSE)
-    
-    data_row <- cbind("filename", "doc_version", "doc_section", "row_no")
-    for (j in seq(1:length(data_cols$field_name))){
-      data_row <- cbind(data_row, data_cols$field_name[j])
-    }
-    
-    data[1,] <- data_row
-    data[2:(length(data_rows$row_no) + 1),1] <- doc_info$filename
-    data[2:(length(data_rows$row_no) + 1),2] <- doc_info$doc_version
-    data[2:(length(data_rows$row_no) + 1),3] <- doc_info$doc_section
-    
-    
-    for (i in seq(1:length(data_rows$row_no))){
+    if (project_type == "coordinates"){
+      
+      data_rows <- dbGetQuery(db, paste0("SELECT DISTINCT z.row_no FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999"))
+      
+      data_cols <- dbGetQuery(db, paste0("SELECT z.field_name, z.field_order FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999 GROUP BY z.field_name, z.field_order ORDER BY z.field_order"))
+      
+      doc_info <- dbGetQuery(db, paste0("SELECT filename, doc_version, doc_section FROM ocr_documents WHERE document_id = '", document_id, "'"))
+      
+      data <- data.frame(matrix(ncol = 4 + length(data_cols$field_name), data = NA), stringsAsFactors = FALSE)
+      
+      data_row <- cbind("filename", "doc_version", "doc_section", "row_no")
+      for (j in seq(1:length(data_cols$field_name))){
+        data_row <- cbind(data_row, data_cols$field_name[j])
+      }
+      
+      data[1,] <- data_row
+      data[2:(length(data_rows$row_no) + 1),1] <- doc_info$filename
+      data[2:(length(data_rows$row_no) + 1),2] <- doc_info$doc_version
+      data[2:(length(data_rows$row_no) + 1),3] <- doc_info$doc_section
+      
+      
+      for (i in seq(1:length(data_rows$row_no))){
         data[i+1, 4] <- data_rows$row_no[i]
       }
-
-    for (i in seq(1:length(data_rows$row_no))){
-      for (j in seq(1:length(data_cols$field_name))){
-        
-        data_cell <- dbGetQuery(db, paste0("SELECT d.word_text FROM ocr_zonal_data d, ocr_zones z WHERE d.zone_id = z.zone_id AND d.document_id = '", document_id, "' AND z.row_no = ", data_rows$row_no[i], " AND field_name = '", data_cols$field_name[j], "'"))
-        
-        if (dim(data_cell)[1] == 1){
-          data[i+1, j+4] <- data_cell
+      
+      for (i in seq(1:length(data_rows$row_no))){
+        for (j in seq(1:length(data_cols$field_name))){
+          
+          data_cell <- dbGetQuery(db, paste0("SELECT d.word_text FROM ocr_zonal_data d, ocr_zones z WHERE d.zone_id = z.zone_id AND d.document_id = '", document_id, "' AND z.row_no = ", data_rows$row_no[i], " AND field_name = '", data_cols$field_name[j], "'"))
+          
+          if (dim(data_cell)[1] == 1){
+            data[i+1, j+4] <- data_cell
+          }
         }
       }
+      
+      names(data) <- data[1,]
+      data <- data[2:dim(data)[1],]
+      
+    }else{
+      
+      data_rows <- dbGetQuery(db, paste0("SELECT DISTINCT z.row_no FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999"))
+      
+      data_cols <- dbGetQuery(db, paste0("SELECT z.field_name, z.field_order FROM ocr_zones z, ocr_documents d WHERE d.document_id = '", document_id, "' AND  z.doc_version = d.doc_version AND z.doc_section = d.doc_section AND z.row_no != 999 GROUP BY z.field_name, z.field_order ORDER BY z.field_order"))
+      
+      doc_info <- dbGetQuery(db, paste0("SELECT filename, doc_version, doc_section FROM ocr_documents WHERE document_id = '", document_id, "'"))
+      
+      data <- data.frame(matrix(ncol = 4 + length(data_cols$field_name), data = NA), stringsAsFactors = FALSE)
+      
+      data_row <- cbind("filename", "doc_version", "doc_section", "row_no")
+      for (j in seq(1:length(data_cols$field_name))){
+        data_row <- cbind(data_row, data_cols$field_name[j])
+      }
+      
+      data[1,] <- data_row
+      data[2:(length(data_rows$row_no) + 1),1] <- doc_info$filename
+      data[2:(length(data_rows$row_no) + 1),2] <- doc_info$doc_version
+      data[2:(length(data_rows$row_no) + 1),3] <- doc_info$doc_section
+      
+      
+      for (i in seq(1:length(data_rows$row_no))){
+        data[i+1, 4] <- data_rows$row_no[i]
+      }
+      
+      for (i in seq(1:length(data_rows$row_no))){
+        for (j in seq(1:length(data_cols$field_name))){
+          
+          data_cell <- dbGetQuery(db, paste0("SELECT d.word_text FROM ocr_zonal_data d, ocr_zones z WHERE d.zone_id = z.zone_id AND d.document_id = '", document_id, "' AND z.row_no = ", data_rows$row_no[i], " AND field_name = '", data_cols$field_name[j], "'"))
+          
+          if (dim(data_cell)[1] == 1){
+            data[i+1, j+4] <- data_cell
+          }
+        }
+      }
+      
+      names(data) <- data[1,]
+      data <- data[2:dim(data)[1],]
     }
     
-    names(data) <- data[1,]
-    data <- data[2:dim(data)[1],]
     data
     
   })
@@ -540,6 +593,8 @@ server <- function(input, output, session) {
     query <- parseQueryString(session$clientData$url_search)
     document_id <- gsub("[^[:alnum:][:space:]][_]", "", query['document_id'])
     if (document_id == "NULL"){req(FALSE)}
+    
+    if (project_type != "coordinates"){req(FALSE)}
     
     DT::datatable(
       datasetCSV(),

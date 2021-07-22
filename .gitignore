@@ -111,3 +111,5 @@ settings.R
 *.zip
 .Rproj.user
 DPO_OCR.Rproj
+
+.idea
