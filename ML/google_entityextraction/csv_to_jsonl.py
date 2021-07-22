@@ -11,10 +11,10 @@ import settings
 import os
 import shutil
 
-os.remove('list.csv')
-shutil.rmtree('training_data')
+# os.remove('list.csv')
+# shutil.rmtree('training_data')
 
-os.mkdir('training_data')
+# os.mkdir('training_data')
 
 data = pd.read_excel('Alembo_import_set79_simplified.xlsx')
 
@@ -36,6 +36,9 @@ i = 0
 for line in Lines:
     if i > 10000:
         break
+
+    if os.path.isfile('training_data/data_{}.jsonl'.format(i)):
+        continue
 
     this_line = line.strip().replace("\"", "")
 
