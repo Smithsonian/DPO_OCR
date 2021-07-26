@@ -34,14 +34,13 @@ Lines = file1.readlines()
 i = 0
 
 for line in Lines:
-    if i > 10000:
-        break
-
+    # if i > 11000:
+    #     break
+    print(str(i))
     if os.path.isfile('training_data/data_{}.jsonl'.format(i)):
+        i += 1
         continue
-
     this_line = line.strip().replace("\"", "")
-
     jsonl_string = template_pre
 
     #Edan info
@@ -80,7 +79,6 @@ for line in Lines:
             entry = template_entry.format(end_offset=field_to, start_offset=field_from, display_name=field_label)
             jsonl_string = jsonl_string + entry + ","
 
-
     # Date
     col = 14
     field_label = "date"
@@ -91,7 +89,6 @@ for line in Lines:
             field_to = field_from + data_block_len
             entry = template_entry.format(end_offset=field_to, start_offset=field_from, display_name=field_label)
             jsonl_string = jsonl_string + entry + ","
-
 
     # country
     col = 15
@@ -126,8 +123,6 @@ for line in Lines:
             entry = template_entry.format(end_offset=field_to, start_offset=field_from, display_name=field_label)
             jsonl_string = jsonl_string + entry + ","
 
-
-
     # Remove trailing comma
     if jsonl_string[-1] == ",":
         jsonl_string = jsonl_string[:-1]
@@ -138,10 +133,7 @@ for line in Lines:
     # Writing a string to file
     output_file.write(jsonl_string)
     output_file.close()
-
-
     output_file = open('list.csv', 'a', encoding="utf-8")
     output_file.write(",gs://botany_test/training_data/data_{}.jsonl\n".format(i))
     output_file.close()
-
     i += 1
