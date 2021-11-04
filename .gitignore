@@ -113,3 +113,5 @@ settings.R
 DPO_OCR.Rproj
 
 .idea
+*.json
+*.tif
