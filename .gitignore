@@ -115,3 +115,8 @@ DPO_OCR.Rproj
 .idea
 *.json
 *.tif
+ML/google_documentai/res.txt
+ML/google_documentai/python_history.txt
+ML/google_entityextraction/Alembo_import_set79_ML_test.xlsx
+ML/google_entityextraction/Alembo_import_set79_simplified.xlsx
+ML/google_vision/settings.py_orig

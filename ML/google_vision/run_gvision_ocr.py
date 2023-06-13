@@ -22,6 +22,7 @@ from google.protobuf.json_format import MessageToJson
 # Import database settings from settings.py file
 import settings
 
+
 # Script variables
 script_title = "OCR using Google Vision"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
@@ -32,17 +33,17 @@ repo = "https://github.com/Smithsonian/DPO_OCR/"
 lic = "Available under the Apache 2.0 License"
 
 # Check for updates to the script
-try:
-    with urllib.request.urlopen(vercheck) as response:
-        current_ver = response.read()
-    cur_ver = current_ver.decode('ascii').replace('\n', '')
-    if cur_ver != ver:
-        msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}\nThis version is outdated. Current version is {cur_ver}.\nPlease download the updated version at: {repo}"
-    else:
-        msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
-except urllib.error.URLError:
-    msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
-    cur_ver = ver
+# try:
+    # with urllib.request.urlopen(vercheck) as response:
+        # current_ver = response.read()
+    # cur_ver = current_ver.decode('ascii').replace('\n', '')
+    # if cur_ver != ver:
+        # msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}\nThis version is outdated. Current version is {cur_ver}.\nPlease download the updated version at: {repo}"
+    # else:
+        # msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
+# except urllib.error.URLError:
+msg_text = "{subtitle}\n\n{repo}\n{lic}\n\nver. {ver}"
+cur_ver = ver
 
 f = Figlet(font='slant')
 print("\n")
@@ -94,6 +95,7 @@ if not os.path.exists(settings.project_id):
 ver_folder = "{}/{}".format(settings.project_id, doc_version)
 if not os.path.exists(ver_folder):
     os.mkdir(ver_folder)
+
 version_folder = "{}/{}".format(ver_folder, doc_section)
 if not os.path.exists(version_folder):
     os.mkdir(version_folder)
@@ -153,7 +155,9 @@ for filename in list_of_files:
     response = client.document_text_detection(image=image, image_context=image_context)
 
     # Write response to json
-    jsonObj = json.loads(MessageToJson(response, preserving_proto_field_name=True))
+    # jsonObj = json.loads(MessageToJson(response, preserving_proto_field_name=True))
+    # from https://github.com/protocolbuffers/protobuf/issues/7941
+    jsonObj = type(response).to_json(response)
     with open('{}/{}.json'.format(response_folder, file_stem), 'w') as out:
         out.write(json.dumps(jsonObj))
 

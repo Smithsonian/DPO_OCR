@@ -18,6 +18,8 @@ from pathlib import Path
 # Load Google Cloud
 from google.cloud import documentai_v1beta3 as documentai
 from google.cloud.documentai_v1beta3 import Document
+# from google.cloud import storage
+
 # from pyfiglet import Figlet
 
 # Import project settings
@@ -26,7 +28,7 @@ import settings
 # Script variables
 script_title = "Google Document AI Data Extraction"
 subtitle = "Digitization Program Office\nOffice of the Chief Information Officer\nSmithsonian Institution\nhttps://dpo.si.edu"
-ver = "0.1"
+ver = "0.2"
 vercheck = "https://raw.githubusercontent.com/Smithsonian/DPO_OCR/master/ML/google_documentai/toolversion.txt"
 repo = "https://github.com/Smithsonian/DPO_OCR/"
 lic = "Available under the Apache 2.0 License"
@@ -53,11 +55,11 @@ lic = "Available under the Apache 2.0 License"
 
 
 if len(sys.argv) != 2:
-    print("Error: arguments missing. Usage:\n\n ./run_docai.py <folder with tifs>")
+    print("Error: arguments missing. Usage:\n\n ./run_docai.py <folder with jpgs>")
     sys.exit(1)
 else:
     if not os.path.isdir(sys.argv[1]):
-        print("Error: path to TIF files does not exists.")
+        print("Error: path to JPG files does not exists.")
         sys.exit(1)
     else:
         path = sys.argv[1]
@@ -91,9 +93,20 @@ def _get_text(el):
     return response
 
 
-# Get images
-list_of_files = glob.glob('{}/*.tif'.format(path))
+# Get images - local
+list_of_files = glob.glob('{}/*.jpg'.format(path))
 print("\n\nFound {} files.".format(len(list_of_files)))
+
+# Get images - from bucket
+# storage_client = storage.Client()
+
+# blobs = storage_client.list_blobs(settings.bucket)
+
+# for blob in blobs:
+    # print(blob.name)
+
+
+
 
 
 # Run each file
@@ -103,7 +116,7 @@ for filename in list_of_files:
     print("Reading image {}...".format(filename))
     with open(filename, "rb") as image:
         image_content = image.read()
-    document = {"content": image_content, "mime_type": "image/tiff"}
+    document = {"content": image_content, "mime_type": "image/jpeg"}
     request = {"name": name, "document": document}
     print(" Sending image to the cloud...")
     result = client.process_document(request=request)
@@ -113,6 +126,8 @@ for filename in list_of_files:
     # Save values to csv
     data_file = '{}/{}.csv'.format(path, file_stem)
     document = result.document
+    wordfile = open(data_file, "w")
+    wordfile.write("document,page,field_name,field_confidence,value,value_confidence\n")
     for page in document.pages:
         print("Page number: {}".format(page.page_number))
         for form_field in page.form_fields:
@@ -126,6 +141,9 @@ for filename in list_of_files:
                     _get_text(form_field.field_value), form_field.field_value.confidence
                 )
             )
+            wordfile.write("%s|%s|%s|%s|%s|%s\n" % (
+                        file_stem, page.page_number, _get_text(form_field.field_name).replace('\n','').strip(), form_field.field_name.confidence, _get_text(form_field.field_value).replace('\n','').strip(), form_field.field_value.confidence))
+    wordfile.close()
     # for page in result.document.pages:
     #     print("Page number: {}".format(page.page_number))
     #     for form_field in page.form_fields:
